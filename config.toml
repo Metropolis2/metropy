@@ -88,7 +88,7 @@ min_length = 1
 # Warning. If `false`, some origin-destination pairs might not be feasible.
 ensure_connected = true
 # If `true`, the edges are re-index after the postprocessing so that they are indexed from 0 to n-1.
-reindex = true
+reindex = false
 # Whether statistics on the network should be printed.
 print_stats = true
 # Whether graphs of the variables should be saved.

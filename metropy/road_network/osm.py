@@ -8,7 +8,7 @@ from osmium.geom import WKBFactory
 import pyproj
 from shapely.ops import transform
 from shapely.geometry import LineString, Point
-from shapely.prepared import PreparedGeometry, prep
+from shapely.prepared import prep
 from matplotlib.cm import Set3
 
 import metropy.utils.mpl as mpl
@@ -253,7 +253,7 @@ def valid_way(way, highways: set[str]) -> bool:
         has_access
         and len(way.nodes) > 1
         and way.tags.get("highway") in highways
-        #  and not way.tags.get("area") == "yes"
+        and not way.tags.get("area") == "yes"
     )
 
 
@@ -601,7 +601,7 @@ class EdgeReader(osmium.SimpleHandler):
                 }
             )
 
-    def post_process(self, urban_area: PreparedGeometry | None, metric_crs: str):
+    def post_process(self, urban_area, metric_crs: str):
         edges = gpd.GeoDataFrame(self.edges, crs="EPSG:4326")
 
         if not urban_area is None:

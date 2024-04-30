@@ -1,6 +1,9 @@
 import os
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    from pip._vendor import tomli as tomllib
 
 def read_config() -> dict:
     """Reads the `config.toml` file from the default path or from the "--config" argument."""
