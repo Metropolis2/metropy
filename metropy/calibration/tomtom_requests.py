@@ -9,7 +9,7 @@ from tqdm import tqdm
 import metropy.utils.io as metro_io
 
 BASE_URL = "https://api.tomtom.com/routing/1/calculateRoute/"
-PARAMS = {"computeTravelTimeFor": "all", "departAt": "2024-07-30T03:30:0"}
+PARAMS = {"computeTravelTimeFor": "all", "departAt": "2024-07-30T03:30:00", "traffic": False}
 
 
 def read_edges(input_file: str):
@@ -77,8 +77,8 @@ async def process_batch(api_key, nodes, coordinates, batch_id: int, batch_size: 
                             "target": node_ids[i + 1],
                             "length": leg["summary"]["lengthInMeters"],
                             "tt": leg["summary"]["noTrafficTravelTimeInSeconds"],
-                            "tt_traffic": leg["summary"]["travelTimeInSeconds"],
-                            "tt_historical": leg["summary"]["historicTrafficTravelTimeInSeconds"],
+                            #  "tt_traffic": leg["summary"]["travelTimeInSeconds"],
+                            #  "tt_historical": leg["summary"]["historicTrafficTravelTimeInSeconds"],
                             "geometry": geom,
                         }
                         batch_results.append(res)
@@ -105,6 +105,7 @@ async def get_tomtom_data(config, api_key, nodes, coordinates):
         )
     )
     gdf = gpd.GeoDataFrame(pd.concat(results), crs="EPSG:4326")
+    gdf["id"] = np.arange(len(gdf))
     return gdf
 
 
