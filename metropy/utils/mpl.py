@@ -3,9 +3,6 @@ import os
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-# Directory where the graphs should be stored.
-GRAPH_DIR = "./graph"
-
 CMP = mpl.colormaps["Set2"]
 
 PARAMETERS = {
@@ -25,9 +22,6 @@ PARAMETERS = {
     "font.family": "serif",
 }
 plt.rcParams.update(PARAMETERS)
-
-if not os.path.isdir(GRAPH_DIR):
-    os.makedirs(GRAPH_DIR)
 
 def set_size(width=470, ratio="golden", fraction=1.0):
     """Set figure dimensions to avoid scaling in LaTeX.

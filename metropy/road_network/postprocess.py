@@ -8,6 +8,7 @@ import geopandas as gpd
 from matplotlib.cm import Set3
 
 import metropy.utils.mpl as mpl
+import metropy.utils.io as metro_io
 
 
 def postprocess(config: dict, input_file: str, output_file: str):
@@ -27,16 +28,13 @@ def postprocess(config: dict, input_file: str, output_file: str):
         raise Exception("Missing key `default_speed` in config")
     gdf = read_edges(input_file)
     gdf = clean(gdf, config)
-    save(gdf, output_file)
+    metro_io.save_geodataframe(gdf, output_file)
     print("Total running time: {:.2f} seconds".format(time.time() - t0))
     return gdf
 
 
 def read_edges(input_file):
-    if input_file.endswith(".parquet"):
-        gdf = gpd.read_parquet(input_file)
-    else:
-        gdf = gpd.read_file(input_file)
+    gdf = metro_io.read_geodataframe(input_file)
     columns = [
         "geometry",
         "source",
@@ -184,25 +182,9 @@ def clean(gdf, config):
         gdf = select_connected(gdf)
     if config.get("reindex", False):
         gdf = reindex(gdf)
+    gdf.sort_values("id", inplace=True)
     gdf = check(gdf, config)
     return gdf
-
-
-def save(gdf, output_file):
-    print("Saving post-processed edges")
-    directory = os.path.dirname(output_file)
-    if not os.path.isdir(directory):
-        os.makedirs(directory)
-    if output_file.endswith("parquet"):
-        gdf.to_parquet(output_file)
-    elif output_file.endswith("geojson"):
-        gdf.to_file(output_file, driver="GeoJSON")
-    elif output_file.endswith("fgb"):
-        gdf.to_file(output_file, driver="FlatGeobuf")
-    elif output_file.endswith("shp"):
-        gdf.to_file(output_file, driver="Shapefile")
-    else:
-        raise Exception(f"Unsupported format for output file: `{output_file}`")
 
 
 def print_stats(gdf: gpd.GeoDataFrame):

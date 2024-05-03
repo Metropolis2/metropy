@@ -2,6 +2,9 @@
 # See: https://en.wikipedia.org/wiki/Projected_coordinate_system
 crs = "EPSG:2154"
 
+# Random seed to be used for random number generators.
+random_seed = 13081996
+
 # Path to the directory where graphs should be stored.
 graph_directory = "./output/graph/"
 
@@ -165,3 +168,24 @@ unclassified = 600
 residential = 600
 #road = 300
 #service = 300
+
+[calibration.tomtom]
+# Path to the output file where the TomTom requests results are stored
+# (possible extensions: parquet, geojson, fgb, shp).
+output_file = "./output/calibration/tomtom_results.parquet"
+# Number of routes to request.
+# Note. Free TomTom API is limiting the daily number of requests to 2500.
+nb_routes = 50
+# Number of waypoints to use for each route request.
+# Note. The number of OD pairs per route is equal to the number of waypoints minus 1 so that the
+# total number of OD pairs is equal to `nb_routes * nb_waypoints - 1`.
+# Note. TomTom API is limiting the number of waypoints to 150.
+nb_waypoints = 10
+# Number of batches to be computed in parallel.
+# Ideally, the value should be the number of threads that you want to use.
+# If the value is too large, TomTom API might complain about exceeding the number of requests per second.
+nb_batches = 8
+# Road types which cannot be selected as origin or destination node for the OD pairs.
+# The edges whose `road_type` column value is equal to one of the given road type will be excluded
+# from the road network prior to selecting the origin and destination nodes.
+excluded_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]

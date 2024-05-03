@@ -26,3 +26,16 @@ def read_config() -> dict:
             raise Exception(f"Cannot parse config:\n{e}")
 
     return config
+
+
+def read_secrets() -> dict:
+    """Reads the `secrets.toml` file from the default path."""
+    path = "secrets.toml"
+    if not os.path.exists(path):
+        raise Exception(f"Cannot find secrets file `{path}`")
+    with open(path, "rb") as f:
+        try:
+            secrets = tomllib.load(f)
+        except Exception as e:
+            raise Exception(f"Cannot parse secrets:\n{e}")
+    return secrets

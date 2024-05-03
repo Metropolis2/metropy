@@ -12,14 +12,12 @@ from collections import defaultdict
 import polars as pl
 import geopandas as gpd
 
+import metropy.utils.io as metro_io
+
 
 def read_edges(input_file):
     print("Reading edges")
-    if input_file.endswith("parquet"):
-        edges = pl.read_parquet(input_file)
-    else:
-        gdf = gpd.read_file(input_file).drop(columns="geometry")
-        edges = pl.from_pandas(gdf)
+    edges = pl.from_pandas(metro_io.read_geodataframe(input_file).drop(columns="geometry"))
     if "main" in edges.columns:
         edges = edges.filter("main")
     else:

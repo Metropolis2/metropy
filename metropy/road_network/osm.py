@@ -12,6 +12,7 @@ from shapely.prepared import prep
 from matplotlib.cm import Set3
 
 import metropy.utils.mpl as mpl
+import metropy.utils.io as metro_io
 
 
 def import_network(config: dict, output_file: str, crs: str) -> gpd.GeoDataFrame:
@@ -637,21 +638,7 @@ class EdgeReader(osmium.SimpleHandler):
         self.edges_df = edges
 
     def write_edges(self, output_file):
-        directory = os.path.dirname(output_file)
-        if not os.path.isdir(directory):
-            os.makedirs(directory)
-        if output_file.endswith("parquet"):
-            self.edges_df.to_parquet(output_file)
-        elif output_file.endswith("geojson"):
-            self.edges_df.to_file(output_file, driver="GeoJSON")
-        elif output_file.endswith("gpkg"):
-            self.edges_df.to_file(output_file, driver="GPKG")
-        elif output_file.endswith("fgb"):
-            self.edges_df.to_file(output_file, driver="FlatGeobuf")
-        elif output_file.endswith("shp"):
-            self.edges_df.to_file(output_file, driver="Shapefile")
-        else:
-            raise Exception(f"Unsupported format for output file: `{output_file}`")
+        metro_io.save_geodataframe(self.edges_df, output_file)
 
 
 def buffer(geom, distance, metric_crs):

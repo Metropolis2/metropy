@@ -36,3 +36,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - OpenStreetMap network imported: `metropy.road_network.osm`
 - Road-network post-processing: `metropy.road_network.postprocess`
 - METROPOLIS2 road-network writer: `metropy.road_network.write_metropolis_edges`
+- Request routing queries from TomTom API: `metropy.calibration.tomtom_requests`
+
+# Acknowledgments
+
+Many thanks to Kokouvi Joseph Djafon for his work on the calibration tools.
