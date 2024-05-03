@@ -8,6 +8,9 @@ random_seed = 13081996
 # Path to the directory where graphs should be stored.
 graph_directory = "./output/graph/"
 
+# Directory to be used to temporarily store files.
+tmp_directory = "./tmp/"
+
 # Path to the file where the imported edges are stored
 # (possible extensions: parquet, geojson, fgb, shp).
 raw_edges_file = "./output/road_network/edges_raw.parquet"
@@ -189,3 +192,20 @@ nb_batches = 8
 # The edges whose `road_type` column value is equal to one of the given road type will be excluded
 # from the road network prior to selecting the origin and destination nodes.
 excluded_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
+
+[calibration.map_matching]
+# Path to the output file where the map matching results are stored.
+# This must be a CSV file.
+output_file = "./output/calibration/fmm_results.csv"
+# Number of candidates to be considered as valid match.
+# Larger values provide better match quality but increase running time.
+# Recommended value: 8 or more.
+nb_candidates = 20
+# GPS error of the GPS points, in meters.
+# The GPS points are the coordinates from the routing results.
+# Recommended value: 5.
+gps_error = 5
+# Search radius, in meters.
+# Larger values are more likely to result in a positive match but increase running time.
+# Recommended value: between 30 and 200.
+radius = 100
