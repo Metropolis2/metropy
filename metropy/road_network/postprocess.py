@@ -340,15 +340,16 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
 
 
 if __name__ == "__main__":
-    from metropy.config import read_config
+    from metropy.config import read_config, check_keys
 
     config = read_config()
-    if not "postprocess_network" in config:
-        raise Exception("Missing key `postprocess_network` in config")
-    if not "raw_edges_file" in config:
-        raise Exception("Missing key `raw_edges_file` in config")
-    if not "clean_edges_file" in config:
-        raise Exception("Missing key `clean_edges_file` in config")
+    mandatory_keys = [
+        "postprocess_network",
+        "raw_edges_file",
+        "clean_edges_file",
+    ]
+    check_keys(config, mandatory_keys)
+
     gdf = postprocess(
         config["postprocess_network"], config["raw_edges_file"], config["clean_edges_file"]
     )

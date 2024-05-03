@@ -653,15 +653,15 @@ def buffer(geom, distance, metric_crs):
 
 
 if __name__ == "__main__":
-    from metropy.config import read_config
+    from metropy.config import read_config, check_keys
 
     config = read_config()
-    if not "osm" in config:
-        raise Exception("Missing key `osm` in config")
-    if not "raw_edges_file" in config:
-        raise Exception("Missing key `raw_edges_file` in config")
-    if not "crs" in config:
-        raise Exception("Missing key `crs` in config")
+    mandatory_keys = [
+        "osm",
+        "raw_edges_file",
+        "crs",
+    ]
+    check_keys(config, mandatory_keys)
     gdf = import_network(config["osm"], config["raw_edges_file"], config["crs"])
 
     if config["osm"].get("print_stats", False):

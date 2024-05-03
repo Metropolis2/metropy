@@ -66,18 +66,20 @@ def run_fmm(graph_filename: str, gps_filename: str, config: dict):
 
 
 if __name__ == "__main__":
-    from metropy.config import read_config
+    from metropy.config import read_config, check_keys
 
     config = read_config()
-    for arg in ("clean_edges_file", "crs", "tmp_directory"):
-        if not arg in config:
-            raise Exception(f"Missing key `{arg}` in config")
-    if not "calibration" in config or not "map_matching" in config["calibration"]:
-        raise Exception(f"Missing key `calibration.map_matching` in config")
-    fmm_config = config["calibration"]["map_matching"]
-    for arg in ("output_file", "nb_candidates", "gps_error", "radius"):
-        if not arg in fmm_config:
-            raise Exception(f"Missing key `calibration.map_matching.{arg}` in config")
+    mandatory_keys = [
+        "clean_edges_file",
+        "crs",
+        "tmp_directory",
+        "calibration.map_matching.output_file",
+        "calibration.map_matching.nb_candidates",
+        "calibration.map_matching.gps_error",
+        "calibration.map_matching.radius",
+        "calibration.tomtom.output_file",
+    ]
+    check_keys(config, mandatory_keys)
 
     if not os.path.isdir(config["tmp_directory"]):
         os.makedirs(config["tmp_directory"])
@@ -86,14 +88,14 @@ if __name__ == "__main__":
 
     graph_filename = get_graph(config["clean_edges_file"], config["crs"], config["tmp_directory"])
     gps_filename = get_trajectories(
-        fmm_config["output_file"], config["crs"], config["tmp_directory"]
+        config["calibration"]["tomtom"]["output_file"], config["crs"], config["tmp_directory"]
     )
     try:
-        run_fmm(graph_filename, gps_filename, fmm_config)
-    except:
-        pass
+        run_fmm(graph_filename, gps_filename, config["calibration"]["map_matching"])
+    except Exception as e:
+        print(e)
     finally:
-        # Delete temporary files.
+        # Delete temporary files before returning the error.
         os.remove(graph_filename)
         os.remove(gps_filename)
 

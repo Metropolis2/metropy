@@ -110,17 +110,17 @@ async def get_tomtom_data(config, api_key, nodes, coordinates):
 
 
 if __name__ == "__main__":
-    from metropy.config import read_config, read_secrets
+    from metropy.config import read_config, check_keys, read_secrets
 
     config = read_config()
-    if not "calibration" in config or not "tomtom" in config["calibration"]:
-        raise Exception("Missing key `calibration.tomtom` in config")
-    if not "clean_edges_file" in config:
-        raise Exception("Missing key `clean_edges_file` in config")
+    mandatory_keys = [
+        "clean_edges_file",
+        "calibration.tomtom.output_file",
+        "calibration.tomtom.nb_routes",
+        "calibration.tomtom.nb_waypoints",
+    ]
+    check_keys(config, mandatory_keys)
     tomtom_config = config["calibration"]["tomtom"]
-    for arg in ("output_file", "nb_routes", "nb_waypoints"):
-        if not arg in tomtom_config:
-            raise Exception(f"Missing key `calibration.tomtom.{arg}` in config")
 
     secrets = read_secrets()
     if not "tomtom_key" in secrets:
