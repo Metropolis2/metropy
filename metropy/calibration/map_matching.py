@@ -1,6 +1,8 @@
 import os
 import time
 
+import polars as pl
+
 from fmm import Network, NetworkGraph, STMATCH, STMATCHConfig
 from fmm import GPSConfig, ResultConfig
 
@@ -32,9 +34,10 @@ def get_trajectories(filename: str, crs: str, tmp_dir: str):
     gdf.sort_values("id", inplace=True)
     gdf.to_crs(crs, inplace=True)
     gdf = gdf[["id", "geometry"]].copy()
-    output_filename = os.path.join(tmp_dir, "fmm_gps.shp")
+    df = pl.DataFrame({"id": gdf["id"], "geometry": gdf.geometry.to_wkt()})
+    output_filename = os.path.join(tmp_dir, "fmm_gps.csv")
     print("Saving trajectories")
-    gdf.to_file(output_filename, driver="Shapefile")
+    df.write_csv(output_filename)
     return output_filename
 
 
