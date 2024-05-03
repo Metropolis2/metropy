@@ -69,7 +69,7 @@ if __name__ == "__main__":
     from metropy.config import read_config
 
     config = read_config()
-    for arg in ("clean_edges_file", "crs", "tmp_dir", "calibration.map_matching"):
+    for arg in ("clean_edges_file", "crs", "tmp_directory", "calibration.map_matching"):
         if not arg in config:
             raise Exception(f"Missing key `{arg}` in config")
     fmm_config = config["calibration.map_matching"]
@@ -79,9 +79,9 @@ if __name__ == "__main__":
 
     t0 = time.time()
 
-    graph_filename = get_graph(config["clean_edges_file"], config["crs"], config["tmp_dir"])
+    graph_filename = get_graph(config["clean_edges_file"], config["crs"], config["tmp_directory"])
     gps_filename = get_trajectories(
-        config["calibration.tomtom"]["output_file"], config["crs"], config["tmp_dir"]
+        config["calibration.tomtom"]["output_file"], config["crs"], config["tmp_directory"]
     )
     try:
         run_fmm(graph_filename, gps_filename, config["calibration.map_matching"])
