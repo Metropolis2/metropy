@@ -79,14 +79,17 @@ if __name__ == "__main__":
         if not arg in fmm_config:
             raise Exception(f"Missing key `calibration.map_matching.{arg}` in config")
 
+    if not os.path.isdir(config["tmp_directory"]):
+        os.makedirs(config["tmp_directory"])
+
     t0 = time.time()
 
     graph_filename = get_graph(config["clean_edges_file"], config["crs"], config["tmp_directory"])
     gps_filename = get_trajectories(
-        config["calibration.tomtom"]["output_file"], config["crs"], config["tmp_directory"]
+        fmm_config["output_file"], config["crs"], config["tmp_directory"]
     )
     try:
-        run_fmm(graph_filename, gps_filename, config["calibration.map_matching"])
+        run_fmm(graph_filename, gps_filename, fmm_config)
     except:
         pass
     finally:
