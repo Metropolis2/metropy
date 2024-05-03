@@ -69,10 +69,12 @@ if __name__ == "__main__":
     from metropy.config import read_config
 
     config = read_config()
-    for arg in ("clean_edges_file", "crs", "tmp_directory", "calibration.map_matching"):
+    for arg in ("clean_edges_file", "crs", "tmp_directory"):
         if not arg in config:
             raise Exception(f"Missing key `{arg}` in config")
-    fmm_config = config["calibration.map_matching"]
+    if not "calibration" in config or not "map_matching" in config["calibration"]:
+        raise Exception(f"Missing key `calibration.map_matching` in config")
+    fmm_config = config["calibration"]["map_matching"]
     for arg in ("output_file", "nb_candidates", "gps_error", "radius"):
         if not arg in fmm_config:
             raise Exception(f"Missing key `calibration.map_matching.{arg}` in config")
