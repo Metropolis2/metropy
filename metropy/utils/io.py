@@ -4,15 +4,15 @@ import geopandas as gpd
 from fiona.errors import DriverError
 
 
-def read_geodataframe(filename: str):
+def read_geodataframe(filename: str, columns=None):
     """Reads a GeoDataFrame from a Parquet file or any other format supported by GeoPandas."""
     if not os.path.isfile(filename):
         raise Exception(f"File not found: `{filename}`")
     if filename.endswith(".parquet"):
-        gdf = gpd.read_parquet(filename)
+        gdf = gpd.read_parquet(filename, columns=columns)
     else:
         try:
-            gdf = gpd.read_file(filename)
+            gdf = gpd.read_file(filename, columns=columns)
         except DriverError:
             raise Exception(f"Unsupported format for input file: `{filename}`")
     return gdf

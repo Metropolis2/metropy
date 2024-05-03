@@ -12,7 +12,7 @@ def get_graph(filename: str, crs: str, tmp_dir: str):
     Returns the filename of the saved file.
     """
     print("Reading edges")
-    gdf = metro_io.read_geodataframe(filename)
+    gdf = metro_io.read_geodataframe(filename, columns=["id", "source", "target", "geometry"])
     gdf.set_index("id", inplace=True, drop=True)
     gdf.sort_index(inplace=True)
     gdf.to_crs(crs, inplace=True)
@@ -28,7 +28,7 @@ def get_trajectories(filename: str, crs: str, tmp_dir: str):
     Returns the filename of the saved file.
     """
     print("Reading API results")
-    gdf = metro_io.read_geodataframe(filename)
+    gdf = metro_io.read_geodataframe(filename, columns=["id", "geometry"])
     gdf.sort_values("id", inplace=True)
     gdf.to_crs(crs, inplace=True)
     gdf = gdf[["id", "geometry"]].copy()
