@@ -89,6 +89,9 @@ min_nb_lanes = 0.5
 min_speed = 10
 # Minimum length allowed on edges (in meters).
 min_length = 1
+# Whether the duplicate edges (edges with same source and target) should be removed.
+# Only the edge with the smallest free-flow travel time is kept.
+remove_duplicates = false
 # Whether the network should be restricted to the largest strongly connected component of the
 # underlying graph.
 # Warning. If `false`, some origin-destination pairs might not be feasible.
@@ -209,3 +212,8 @@ gps_error = 5
 # Larger values are more likely to result in a positive match but increase running time.
 # Recommended value: between 30 and 200.
 radius = 100
+
+[calibration.post_map_matching]
+# Path to the output file where the processed map matching results are stored
+# (possible extensions: parquet).
+output_file = "./output/calibration/match_results.parquet"

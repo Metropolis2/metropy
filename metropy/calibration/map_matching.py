@@ -37,7 +37,7 @@ def get_trajectories(filename: str, crs: str, tmp_dir: str):
     df = pl.DataFrame({"id": gdf["id"], "geometry": gdf.geometry.to_wkt()})
     output_filename = os.path.join(tmp_dir, "fmm_gps.csv")
     print("Saving trajectories")
-    df.write_csv(output_filename)
+    df.write_csv(output_filename, separator=";")
     return output_filename
 
 
@@ -54,7 +54,7 @@ def run_fmm(graph_filename: str, gps_filename: str, config: dict):
     result_config = ResultConfig()
     result_config.file = config["output_file"]
     result_config.output_config.write_offset = False
-    result_config.output_config.write_error = True
+    result_config.output_config.write_error = False
     result_config.output_config.write_opath = False
     result_config.output_config.write_cpath = True
     result_config.output_config.write_ogeom = False

@@ -14,7 +14,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
    ```
 2. Install the dependencies listed in `requirements.txt`.
    The recommended way is to create a
-   [https://docs.python.org/3/library/venv.html](Python virtual environment), activate it and
+   [Python virtual environment](https://docs.python.org/3/library/venv.html), activate it and
    install the dependencies on it:
    ```
    python -m venv venv/
@@ -38,6 +38,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - METROPOLIS2 road-network writer: `metropy.road_network.write_metropolis_edges`
 - Request routing queries from TomTom API: `metropy.calibration.tomtom_requests`
 - Map matching of routing results to the road network: `metropy.calibration.map_matching`
+- Post-processing for the map matching results: `metropy.calibration.post_map_matching`
 
 # Acknowledgments
 
