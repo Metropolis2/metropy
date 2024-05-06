@@ -1,6 +1,7 @@
 # Custom
 data/
 output/
+tmp/
 secrets.toml
 
 # Byte-compiled / optimized / DLL files

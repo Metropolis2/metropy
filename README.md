@@ -39,6 +39,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Request routing queries from TomTom API: `metropy.calibration.tomtom_requests`
 - Map matching of routing results to the road network: `metropy.calibration.map_matching`
 - Post-processing for the map matching results: `metropy.calibration.post_map_matching`
+- [France synthetic population](https://github.com/eqasim-org/ile-de-france) import:
+  `metropy.synthetic_population.france`
 
 # Acknowledgments
 
