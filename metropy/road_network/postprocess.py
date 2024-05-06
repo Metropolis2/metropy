@@ -19,13 +19,6 @@ def postprocess(config: dict, input_file: str, output_file: str):
     t0 = time.time()
     if not os.path.exists(input_file):
         raise Exception(f"Raw edges file not found:\n`{input_file}`")
-
-    if not "default_nb_lanes" in config:
-        raise Exception("Missing key `default_nb_lanes` in config")
-    if not "default_capacity" in config:
-        raise Exception("Missing key `default_capacity` in config")
-    if not "default_speed" in config:
-        raise Exception("Missing key `default_speed` in config")
     gdf = read_edges(input_file)
     gdf = clean(gdf, config)
     metro_io.save_geodataframe(gdf, output_file)
@@ -52,6 +45,7 @@ def read_edges(input_file):
 
 def set_default_values(gdf, config):
     # Set default speeds.
+    gdf["default_speed"] = gdf["speed"].isna()
     if "urban" in gdf.columns:
         # Set default speeds based on urban vs rural areas.
         urban_speeds = config["default_speed"].get("urban")
@@ -76,8 +70,8 @@ def set_default_values(gdf, config):
         )
         default_speeds = pd.concat((urban_speeds, rural_speeds), axis=1)
         gdf = gdf.merge(default_speeds, left_on="road_type", right_index=True, how="left")
-        gdf.loc[gdf["speed"].isna() & gdf["urban"], "speed"] = gdf["urban_speed"]
-        gdf.loc[gdf["speed"].isna() & ~gdf["urban"], "speed"] = gdf["rural_speed"]
+        gdf.loc[gdf["default_speed"] & gdf["urban"], "speed"] = gdf["urban_speed"]
+        gdf.loc[gdf["default_speed"] & ~gdf["urban"], "speed"] = gdf["rural_speed"]
         gdf = gdf.drop(columns=["urban_speed", "rural_speed"])
     else:
         speeds = config["default_speed"]
@@ -85,18 +79,19 @@ def set_default_values(gdf, config):
             raise Exception("Invalid table `postprocess_network.default_speed` in config")
         gdf["speed"] = gdf["speed"].fillna(gdf["road_type"].map(speeds))
     # Set default number of lanes.
+    gdf["default_lanes"] = gdf["lanes"].isna()
     nb_lanes = config["default_nb_lanes"]
     if not isinstance(nb_lanes, dict):
         raise Exception("Invalid table `postprocess_network.default_nb_lanes` in config")
     gdf["lanes"] = gdf["lanes"].fillna(gdf["road_type"].map(nb_lanes))
     # Set default bottleneck capacity.
-    capacities = config["default_capacity"]
-    if not isinstance(capacities, dict):
-        raise Exception("Invalid table `postprocess_network.default_capacity` in config")
-    if "capacity" in gdf.columns:
-        gdf["capacity"] = gdf["capacity"].fillna(gdf["road_type"].map(capacities))
-    else:
-        gdf["capacity"] = gdf["road_type"].map(capacities)
+    #  capacities = config["default_capacity"]
+    #  if not isinstance(capacities, dict):
+        #  raise Exception("Invalid table `postprocess_network.default_capacity` in config")
+    #  if "capacity" in gdf.columns:
+        #  gdf["capacity"] = gdf["capacity"].fillna(gdf["road_type"].map(capacities))
+    #  else:
+        #  gdf["capacity"] = gdf["road_type"].map(capacities)
     return gdf
 
 
@@ -108,7 +103,7 @@ def remove_duplicates(gdf):
     l0 = gdf["length"].sum()
     # Sort the dataframe.
     gdf["tt"] = gdf["length"] / (gdf["speed"] / 3.6)
-    gdf.sort_values(["capacity", "tt"], ascending=[False, True], inplace=True)
+    gdf.sort_values(["tt"], ascending=[True], inplace=True)
     gdf.drop(columns="tt", inplace=True)
     # Drop duplicates.
     gdf.drop_duplicates(subset=["source", "target"], inplace=True)
@@ -177,7 +172,8 @@ def check(gdf, config):
 
 def clean(gdf, config):
     gdf = set_default_values(gdf, config)
-    gdf = remove_duplicates(gdf)
+    if config.get("remove_duplicates", False):
+        gdf = remove_duplicates(gdf)
     if config.get("ensure_connected", True):
         gdf = select_connected(gdf)
     if config.get("reindex", False):
@@ -323,20 +319,20 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         colors=Set3.colors,
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
-    # Capacity distribution bar plot.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    ax.hist(gdf["capacity"], bins=50, density=True, color=mpl.CMP(0))
-    ax.set_xlabel("Capacity (PCE/h)")
-    ax.set_ylabel("Density")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "capacity_distribution.pdf"))
-    # Capacity distribution bar plot, weighted by length.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    ax.hist(gdf["capacity"], bins=50, density=True, weights=gdf["capacity"], color=mpl.CMP(0))
-    ax.set_xlabel("Capacity (PCE/h)")
-    ax.set_ylabel("Density (weighted by edge length)")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "capacity_distribution_length_weights.pdf"))
+    #  # Capacity distribution bar plot.
+    #  fig, ax = mpl.get_figure(fraction=0.8)
+    #  ax.hist(gdf["capacity"], bins=50, density=True, color=mpl.CMP(0))
+    #  ax.set_xlabel("Capacity (PCE/h)")
+    #  ax.set_ylabel("Density")
+    #  fig.tight_layout()
+    #  fig.savefig(os.path.join(graph_dir, "capacity_distribution.pdf"))
+    #  # Capacity distribution bar plot, weighted by length.
+    #  fig, ax = mpl.get_figure(fraction=0.8)
+    #  ax.hist(gdf["capacity"], bins=50, density=True, weights=gdf["capacity"], color=mpl.CMP(0))
+    #  ax.set_xlabel("Capacity (PCE/h)")
+    #  ax.set_ylabel("Density (weighted by edge length)")
+    #  fig.tight_layout()
+    #  fig.savefig(os.path.join(graph_dir, "capacity_distribution_length_weights.pdf"))
 
 
 if __name__ == "__main__":
@@ -344,9 +340,11 @@ if __name__ == "__main__":
 
     config = read_config()
     mandatory_keys = [
-        "postprocess_network",
         "raw_edges_file",
         "clean_edges_file",
+        "postprocess_network.default_nb_lanes",
+        #  "postprocess_network.default_capacity",
+        "postprocess_network.default_speed",
     ]
     check_keys(config, mandatory_keys)
 
