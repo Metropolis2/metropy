@@ -47,11 +47,11 @@ def clean_od(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.Data
     )
     matches = matches.join(
         source_and_targets, left_on=pl.col("first_edge"), right_on="edge_id", how="inner"
-    )
+    ).drop("first_edge")
     matches = matches.rename({"source": "source_first", "target": "target_first"}).drop("edge_id")
     matches = matches.join(
         source_and_targets, left_on=pl.col("last_edge"), right_on="edge_id", how="inner"
-    )
+    ).drop("last_edge")
     matches = matches.rename({"source": "source_last", "target": "target_last"}).drop("edge_id")
     orig_dest = pl.DataFrame(tomtom.loc[:, ["id", "source", "target"]])
     orig_dest = orig_dest.rename({"source": "origin", "target": "destination"})
@@ -61,7 +61,7 @@ def clean_od(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.Data
         (pl.col("target_first") == pl.col("origin")).alias("match_o_t"),
         (pl.col("source_last") == pl.col("destination")).alias("match_d_s"),
         (pl.col("target_last") == pl.col("destination")).alias("match_d_t"),
-    )
+    ).drop("source_first", "target_first", "source_last", "target_last", "origin", "destination")
     #  print("Nb match origin / source: {}".format(matches["match_o_s"].sum()))
     #  print("Nb match origin / target: {}".format(matches["match_o_t"].sum()))
     #  print("Nb match destination / source: {}".format(matches["match_d_s"].sum()))
@@ -77,13 +77,13 @@ def clean_od(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.Data
     # Correct the cpath to match TomTom origin / destination if needed.
     matches = matches.with_columns(
         pl.when(pl.col("match_o_t")).then(pl.col("cpath").list.slice(1)).otherwise(pl.col("cpath"))
-    )
+    ).drop("match_o_s", "match_o_t")
     matches = matches.with_columns(
         pl.when(pl.col("match_d_s"))
         .then(pl.col("cpath").list.slice(0, pl.col("cpath").list.len() - 1))
         .otherwise(pl.col("cpath"))
-    )
-    return matches.filter(pl.col("valid_od"))
+    ).drop("match_d_s", "match_d_t")
+    return matches.filter(pl.col("valid_od")).drop("valid_od")
 
 
 def clean_paths(edges: gpd.GeoDataFrame, matches: pl.DataFrame):
@@ -116,7 +116,7 @@ def clean_paths(edges: gpd.GeoDataFrame, matches: pl.DataFrame):
     )
     n = matches["valid_path"].sum()
     print(f"Matches with valid path: {n}")
-    return matches.filter(pl.col("valid_path"))
+    return matches.filter(pl.col("valid_path")).drop("valid_path")
 
 
 def clean_length(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.DataFrame):
@@ -139,7 +139,7 @@ def clean_length(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.
     )
     n = matches["valid_length_diff"].sum()
     print(f"Matches with correct length difference: {n}")
-    return matches.filter(pl.col("valid_length_diff"))
+    return matches.filter(pl.col("valid_length_diff")).drop("rel_length_diff", "valid_length_diff")
 
 
 def clean_covered(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.DataFrame):
@@ -166,11 +166,13 @@ def clean_covered(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl
     matches = matches.with_columns(pl.Series(covered).alias("covered"))
     n = matches["covered"].sum()
     print(f"Matches with covered path: {n}")
-    return matches.filter(pl.col("covered"))
+    return matches.filter(pl.col("covered")).drop("covered")
 
 
-def save(matches: pl.DataFrame, output_file: str):
+def save(tomtom: gpd.GeoDataFrame, matches: pl.DataFrame, output_file: str):
     print("Saving file...")
+    matches = matches.join(pl.from_pandas(tomtom.loc[:, ["id", "tt"]]), on="id")
+    matches.select("id", "cpath", "length", "length_tomtom", "tt")
     matches.write_parquet(output_file)
 
 
