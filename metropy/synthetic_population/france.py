@@ -191,6 +191,8 @@ if __name__ == "__main__":
     directory = config["synthetic_population"]["input_directory"]
     name = config["synthetic_population"]["name"]
     output_dir = config["synthetic_population"]["output_directory"]
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
 
     t0 = time.time()
     save_households(directory, name, config["crs"], output_dir)
