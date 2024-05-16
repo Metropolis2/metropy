@@ -11,7 +11,7 @@ import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
 
 
-def postprocess(config: dict, input_file: str, output_file: str):
+def postprocess(config: dict, input_file: str, output_file: str, walk: bool):
     """Reads a GeoDataFrame of edges and performs various operations to make the data ready to use
     with METROPOLIS2.
     Saves the results to the given output file.
@@ -19,24 +19,24 @@ def postprocess(config: dict, input_file: str, output_file: str):
     t0 = time.time()
     if not os.path.exists(input_file):
         raise Exception(f"Raw edges file not found:\n`{input_file}`")
-    gdf = read_edges(input_file)
-    gdf = clean(gdf, config)
+    gdf = read_edges(input_file, walk)
+    gdf = clean(gdf, config, walk)
     metro_io.save_geodataframe(gdf, output_file)
     print("Total running time: {:.2f} seconds".format(time.time() - t0))
     return gdf
 
 
-def read_edges(input_file):
+def read_edges(input_file: str, walk: bool):
     gdf = metro_io.read_geodataframe(input_file)
     columns = [
         "geometry",
         "source",
         "target",
         "length",
-        "speed",
-        "lanes",
         "road_type",
     ]
+    if not walk:
+        columns.extend(["speed", "lanes"])
     for col in columns:
         if not col in gdf.columns:
             print("Error: Missing column {}".format(col))
@@ -95,22 +95,24 @@ def set_default_values(gdf, config):
     return gdf
 
 
-def remove_duplicates(gdf):
+def remove_duplicates(gdf, walk: bool):
     """Remove the duplicates edges, keeping in order of priority the one in the main graph, with the
     largest capacity and with smallest free-flow travel time."""
     print("Removing duplicate edges")
     n0 = len(gdf)
     l0 = gdf["length"].sum()
     # Sort the dataframe.
-    gdf["tt"] = gdf["length"] / (gdf["speed"] / 3.6)
-    gdf.sort_values(["tt"], ascending=[True], inplace=True)
-    gdf.drop(columns="tt", inplace=True)
+    if walk:
+        gdf.sort_values("length", ascending=True, inplace=True)
+    else:
+        gdf["tt"] = gdf["length"] / (gdf["speed"] / 3.6)
+        gdf.sort_values(["tt"], ascending=[True], inplace=True)
+        gdf.drop(columns="tt", inplace=True)
     # Drop duplicates.
     gdf.drop_duplicates(subset=["source", "target"], inplace=True)
     n1 = len(gdf)
     if n0 > n1:
         l1 = gdf["length"].sum()
-        print("Warning: discarding {} edges duplicated".format(n0 - n1))
         print("Number of edges removed: {} ({:.2%})".format(n0 - n1, (n0 - n1) / n0))
         print("Edge length removed (m): {:.0f} ({:.2%})".format(l0 - l1, (l0 - l1) / l0))
     return gdf
@@ -148,10 +150,11 @@ def reindex(gdf):
     return gdf
 
 
-def check(gdf, config):
-    gdf["lanes"] = gdf["lanes"].clip(config.get("min_nb_lanes", 1))
+def check(gdf, config, walk: bool):
+    if not walk:
+        gdf["lanes"] = gdf["lanes"].clip(config.get("min_nb_lanes", 1))
+        gdf["speed"] = gdf["speed"].clip(config.get("min_speed", 1e-4))
     gdf["length"] = gdf["length"].clip(config.get("min_length", 0.0))
-    gdf["speed"] = gdf["speed"].clip(config.get("min_speed", 1e-4))
     # Count number of incoming / outgoing edges for the source / target node.
     target_counts = gdf["target"].value_counts()
     source_counts = gdf["source"].value_counts()
@@ -170,111 +173,115 @@ def check(gdf, config):
     return gdf
 
 
-def clean(gdf, config):
-    gdf = set_default_values(gdf, config)
+def clean(gdf, config, walk):
+    if not walk:
+        gdf = set_default_values(gdf, config)
     if config.get("remove_duplicates", False):
-        gdf = remove_duplicates(gdf)
+        gdf = remove_duplicates(gdf, walk)
     if config.get("ensure_connected", True):
         gdf = select_connected(gdf)
     if config.get("reindex", False):
         gdf = reindex(gdf)
     gdf.sort_values("id", inplace=True)
-    gdf = check(gdf, config)
+    gdf = check(gdf, config, walk)
     return gdf
 
 
-def print_stats(gdf: gpd.GeoDataFrame):
+def print_stats(gdf: gpd.GeoDataFrame, walk: bool):
     print("Printing stats")
     nb_nodes = len(set(gdf["source"]).union(set(gdf["target"])))
     print(f"Number of nodes: {nb_nodes:,}")
     nb_edges = len(gdf)
     print(f"Number of edges: {nb_edges:,}")
-    nb_urbans = gdf["urban"].sum()
-    print(f"Number of urban edges: {nb_urbans:,} ({nb_urbans / nb_edges:.1%})")
-    nb_rurals = nb_edges - nb_urbans
-    print(f"Number of rural edges: {nb_rurals:,} ({nb_rurals / nb_edges:.1%})")
-    nb_roundabouts = gdf["roundabout"].sum()
-    print(f"Number of roundabout edges: {nb_roundabouts:,} ({nb_roundabouts / nb_edges:.1%})")
-    nb_traffic_signals = gdf["traffic_signals"].sum()
-    print(
-        f"Number of edges with traffic signals: {nb_traffic_signals:,} ({nb_traffic_signals / nb_edges:.1%})"
-    )
-    nb_stop_signs = gdf["stop_sign"].sum()
-    print(f"Number of edges with stop sign: {nb_stop_signs:,} ({nb_stop_signs / nb_edges:.1%})")
-    nb_give_way_signs = gdf["give_way_sign"].sum()
-    print(
-        f"Number of edges with give_way sign: {nb_give_way_signs:,} ({nb_give_way_signs / nb_edges:.1%})"
-    )
+    if not walk:
+        nb_urbans = gdf["urban"].sum()
+        print(f"Number of urban edges: {nb_urbans:,} ({nb_urbans / nb_edges:.1%})")
+        nb_rurals = nb_edges - nb_urbans
+        print(f"Number of rural edges: {nb_rurals:,} ({nb_rurals / nb_edges:.1%})")
+        nb_roundabouts = gdf["roundabout"].sum()
+        print(f"Number of roundabout edges: {nb_roundabouts:,} ({nb_roundabouts / nb_edges:.1%})")
+        nb_traffic_signals = gdf["traffic_signals"].sum()
+        print(
+            f"Number of edges with traffic signals: {nb_traffic_signals:,} ({nb_traffic_signals / nb_edges:.1%})"
+        )
+        nb_stop_signs = gdf["stop_sign"].sum()
+        print(f"Number of edges with stop sign: {nb_stop_signs:,} ({nb_stop_signs / nb_edges:.1%})")
+        nb_give_way_signs = gdf["give_way_sign"].sum()
+        print(
+            f"Number of edges with give_way sign: {nb_give_way_signs:,} ({nb_give_way_signs / nb_edges:.1%})"
+        )
     tot_length = gdf["length"].sum() / 1e3
     print(f"Total edge length (km): {tot_length:,.3f}")
-    urban_length = gdf.loc[gdf["urban"], "length"].sum() / 1e3
-    print(f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})")
-    rural_length = tot_length - urban_length
-    print(f"Total rural edge length (km): {rural_length:,.3f} ({rural_length / tot_length:.1%})")
+    if not walk:
+        urban_length = gdf.loc[gdf["urban"], "length"].sum() / 1e3
+        print(f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})")
+        rural_length = tot_length - urban_length
+        print(f"Total rural edge length (km): {rural_length:,.3f} ({rural_length / tot_length:.1%})")
 
 
-def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
+def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
     print("Generating graphs of the variables")
     if not os.path.isdir(graph_dir):
         os.makedirs(graph_dir)
-    # Length distribution hist.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    bins = np.logspace(np.log(gdf["length"].min()), np.log(gdf["length"].max()), 50, base=np.e)
-    ax.hist(gdf["length"], bins=bins, density=True, color=mpl.CMP(0))
-    ax.set_xscale("log")
-    ax.set_xlabel("Length (meters, log scale)")
-    ax.set_ylabel("Density")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "length_distribution.pdf"))
-    # Speed distribution bar plot.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    bins = np.arange(
-        np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-        np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
-        5.0,
-    )
-    ax.hist(gdf["speed"], bins=bins, density=True, color=mpl.CMP(0))
-    ax.set_xlabel("Speed limit (km/h)")
-    ax.set_ylabel("Density")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "speed_distribution.pdf"))
-    # Speed distribution bar plot, weighted by length.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    bins = np.arange(
-        np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-        np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
-        5.0,
-    )
-    ax.hist(gdf["speed"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
-    ax.set_xlabel("Speed limit (km/h)")
-    ax.set_ylabel("Density (weighted by edge length)")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "speed_distribution_length_weights.pdf"))
-    # Lanes distribution bar plot.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    mask = ~gdf["lanes"].isna()
-    bins = [0.5, 1.5, 2.5, 3.5, gdf["lanes"].max()]
-    bars, _ = np.histogram(gdf.loc[mask, "lanes"], bins=bins)
-    bars = bars / mask.sum()
-    xs = np.arange(1, 5)
-    ax.bar(xs, bars, width=1.0, color=mpl.CMP(0))
-    ax.set_xlabel("Number of lanes")
-    ax.set_xticks(xs, ["1", "2", "3", "4+"])
-    ax.set_ylabel("Density")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "lanes_distribution.pdf"))
-    # Lanes distribution bar plot, weighted by length.
-    fig, ax = mpl.get_figure(fraction=0.8)
-    bins = [0.5, 1.5, 2.5, 3.5, gdf["lanes"].max()]
-    bars, _ = np.histogram(gdf.loc[mask, "lanes"], bins=bins, weights=gdf.loc[mask, "length"])
-    bars = bars / gdf.loc[mask, "length"].sum()
-    xs = np.arange(1, 5)
-    ax.bar(xs, bars, width=1.0, color=mpl.CMP(0))
-    ax.set_xlabel("Number of lanes")
-    ax.set_xticks(xs, ["1", "2", "3", "4+"])
-    ax.set_ylabel("Density (weighted by edge length)")
-    fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "lanes_distribution_length_weights.pdf"))
+    if not walk:
+        # Length distribution hist.
+        fig, ax = mpl.get_figure(fraction=0.8)
+        bins = np.logspace(np.log(gdf["length"].min()), np.log(gdf["length"].max()), 50, base=np.e)
+        ax.hist(gdf["length"], bins=bins, density=True, color=mpl.CMP(0))
+        ax.set_xscale("log")
+        ax.set_xlabel("Length (meters, log scale)")
+        ax.set_ylabel("Density")
+        fig.tight_layout()
+        fig.savefig(os.path.join(graph_dir, "length_distribution.pdf"))
+        # Speed distribution bar plot.
+        fig, ax = mpl.get_figure(fraction=0.8)
+        bins = np.arange(
+            np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
+            np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+            5.0,
+        )
+        ax.hist(gdf["speed"], bins=bins, density=True, color=mpl.CMP(0))
+        ax.set_xlabel("Speed limit (km/h)")
+        ax.set_ylabel("Density")
+        fig.tight_layout()
+        fig.savefig(os.path.join(graph_dir, "speed_distribution.pdf"))
+        # Speed distribution bar plot, weighted by length.
+        fig, ax = mpl.get_figure(fraction=0.8)
+        bins = np.arange(
+            np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
+            np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+            5.0,
+        )
+        ax.hist(gdf["speed"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
+        ax.set_xlabel("Speed limit (km/h)")
+        ax.set_ylabel("Density (weighted by edge length)")
+        fig.tight_layout()
+        fig.savefig(os.path.join(graph_dir, "speed_distribution_length_weights.pdf"))
+        # Lanes distribution bar plot.
+        fig, ax = mpl.get_figure(fraction=0.8)
+        mask = ~gdf["lanes"].isna()
+        bins = [0.5, 1.5, 2.5, 3.5, gdf["lanes"].max()]
+        bars, _ = np.histogram(gdf.loc[mask, "lanes"], bins=bins)
+        bars = bars / mask.sum()
+        xs = np.arange(1, 5)
+        ax.bar(xs, bars, width=1.0, color=mpl.CMP(0))
+        ax.set_xlabel("Number of lanes")
+        ax.set_xticks(xs, ["1", "2", "3", "4+"])
+        ax.set_ylabel("Density")
+        fig.tight_layout()
+        fig.savefig(os.path.join(graph_dir, "lanes_distribution.pdf"))
+        # Lanes distribution bar plot, weighted by length.
+        fig, ax = mpl.get_figure(fraction=0.8)
+        bins = [0.5, 1.5, 2.5, 3.5, gdf["lanes"].max()]
+        bars, _ = np.histogram(gdf.loc[mask, "lanes"], bins=bins, weights=gdf.loc[mask, "length"])
+        bars = bars / gdf.loc[mask, "length"].sum()
+        xs = np.arange(1, 5)
+        ax.bar(xs, bars, width=1.0, color=mpl.CMP(0))
+        ax.set_xlabel("Number of lanes")
+        ax.set_xticks(xs, ["1", "2", "3", "4+"])
+        ax.set_ylabel("Density (weighted by edge length)")
+        fig.tight_layout()
+        fig.savefig(os.path.join(graph_dir, "lanes_distribution_length_weights.pdf"))
     # Road type chart.
     fig, ax = mpl.get_figure(fraction=0.8)
     road_type_lengths = gdf["road_type"].value_counts().sort_index()
@@ -349,13 +356,30 @@ if __name__ == "__main__":
     check_keys(config, mandatory_keys)
 
     gdf = postprocess(
-        config["postprocess_network"], config["raw_edges_file"], config["clean_edges_file"]
+        config["postprocess_network"], config["raw_edges_file"], config["clean_edges_file"],
+        walk=False
     )
 
     if config["postprocess_network"].get("print_stats", False):
-        print_stats(gdf)
+        print_stats(gdf, False)
     if config["postprocess_network"].get("output_graphs", False):
         if not "graph_directory" in config:
             raise Exception("Missing key `graph_directory` in config")
         graph_dir = os.path.join(config["graph_directory"], "road_network.postprocess")
-        plot_variables(gdf, graph_dir)
+        plot_variables(gdf, graph_dir, False)
+
+    # Do the same for the walk road network if needed.
+    if "postprocess_network_walk" in config:
+        print("\nPostprocessing the walking road network...")
+        gdf = postprocess(
+            config["postprocess_network_walk"], config["raw_walk_edges_file"],
+            config["clean_walk_edges_file"], walk=True
+        )
+
+        if config["postprocess_network_walk"].get("print_stats", False):
+            print_stats(gdf, True)
+        if config["postprocess_network_walk"].get("output_graphs", False):
+            if not "graph_directory" in config:
+                raise Exception("Missing key `graph_directory` in config")
+            graph_dir = os.path.join(config["graph_directory"], "road_network.postprocess_walk")
+            plot_variables(gdf, graph_dir, True)

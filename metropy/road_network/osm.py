@@ -629,6 +629,7 @@ class EdgeReader(osmium.SimpleHandler):
                 "traffic_signals",
                 "stop_sign",
                 "give_way_sign",
+                "toll",
                 "road_type",
             ],
         ].copy()

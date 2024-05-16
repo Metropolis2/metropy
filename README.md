@@ -33,7 +33,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 
 # Tools available
 
-- OpenStreetMap network imported: `metropy.road_network.osm`
+- OpenStreetMap network import: `metropy.road_network.osm`
+- OpenStreetMap network import (for walking trips): `metropy.road_network.osm_walk`
 - Road-network post-processing: `metropy.road_network.postprocess`
 - METROPOLIS2 road-network writer: `metropy.road_network.write_metropolis_edges`
 - Request routing queries from TomTom API: `metropy.calibration.tomtom_requests`
@@ -41,6 +42,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Post-processing for the map matching results: `metropy.calibration.post_map_matching`
 - [France synthetic population](https://github.com/eqasim-org/ile-de-france) import:
   `metropy.synthetic_population.france`
+- Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
+  `metropy.routing.opentripplanner`
 
 # Acknowledgments
 
