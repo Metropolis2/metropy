@@ -18,6 +18,9 @@ raw_edges_file = "./output/road_network/edges_raw.parquet"
 # (possible extensions: parquet, geojson, fgb, shp).
 clean_edges_file = "./output/road_network/edges_clean.parquet"
 
+# Path to the directory where the population files are stored.
+population_directory = "./output/synthetic_population/"
+
 [metropolis]
 # Directory where the run input files should be stored.
 input_directory = "./run/"
@@ -181,8 +184,6 @@ input_directory = "eqasim_output/"
 # Name of the generated synthetic population.
 # This is the prefix used in the output files.
 name = "ile_de_france"
-# Path to the directory where the process synthetic population files should be stored.
-output_directory = "./output/synthetic_population/"
 
 [calibration.tomtom]
 # Path to the output file where the TomTom requests results are stored
@@ -226,3 +227,16 @@ radius = 100
 # Path to the output file where the processed map matching results are stored
 # (possible extensions: parquet).
 output_file = "./output/calibration/match_results.parquet"
+
+[routing.opentripplanner]
+# Base URL of the OpenTripPlanner server instance.
+url = "http://0.0.0.0:8080/otp/gtfs/v1"
+# Path to the output directory where the public-transit travel times and itineraries are stored.
+output_directory = "./output/pt_routing/"
+# Date to be used for the requests (format: yyyy-mm-dd).
+date = "2024-05-21"
+# If "departure": the trips' column "departure_time" is read and use as departure time for the requests.
+# If "arrival": the trips' column "arrival_time" is read and use as arrival time for the requests.
+# Otherwise, this must be a string "hh:mm:ss" specifying the departure time for the requests
+# (e.g., "08:00:00" for 8 a.m.).
+time = "arrival"

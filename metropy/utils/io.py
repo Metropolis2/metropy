@@ -1,5 +1,6 @@
 import os
 
+import polars as pl
 import geopandas as gpd
 from fiona.errors import DriverError
 
@@ -16,6 +17,19 @@ def read_geodataframe(filename: str, columns=None):
         except DriverError:
             raise Exception(f"Unsupported format for input file: `{filename}`")
     return gdf
+
+
+def save_dataframe(df: pl.DataFrame, filename: str):
+    """Saves a DataFrame to a Parquet or CSV file."""
+    dirname = os.path.dirname(filename)
+    if not os.path.isdir(dirname):
+        os.makedirs(dirname)
+    if filename.endswith("parquet"):
+        df.write_parquet(filename)
+    elif filename.endswith("csv"):
+        df.write_csv(filename)
+    else:
+        raise Exception(f"Unsupported format for output file: `{filename}`")
 
 
 def save_geodataframe(gdf: gpd.GeoDataFrame, filename: str):
