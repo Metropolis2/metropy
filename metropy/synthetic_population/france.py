@@ -127,6 +127,33 @@ def save_trips(directory: str, name: str, crs: str, output_dir: str):
     trips = trips.with_columns(pl.int_range(len(trips), dtype=pl.UInt64).alias("trip_id"))
     # Retrieve origin / destination coordinates.
     orig_df, dest_df = get_trip_coordinates(directory, name, crs, trips)
+    # Add origin / destination latitude / longitude to the DataFrame.
+    orig_df.to_crs("EPSG:4326", inplace=True)
+    trips = trips.join(
+        pl.DataFrame(
+            {
+                "trip_id": pl.from_pandas(orig_df["trip_id"]),
+                "origin_lng": pl.from_pandas(orig_df.geometry.x),
+                "origin_lat": pl.from_pandas(orig_df.geometry.y),
+            }
+        ),
+        on="trip_id",
+        how="left",
+    )
+    orig_df.to_crs(crs, inplace=True)
+    dest_df.to_crs("EPSG:4326", inplace=True)
+    trips = trips.join(
+        pl.DataFrame(
+            {
+                "trip_id": pl.from_pandas(dest_df["trip_id"]),
+                "destination_lng": pl.from_pandas(dest_df.geometry.x),
+                "destination_lat": pl.from_pandas(dest_df.geometry.y),
+            }
+        ),
+        on="trip_id",
+        how="left",
+    )
+    dest_df.to_crs(crs, inplace=True)
     # Compute origin / destination distance.
     distances = orig_df.distance(dest_df) / 1e3
     trips = trips.join(
@@ -185,12 +212,12 @@ if __name__ == "__main__":
         "crs",
         "synthetic_population.input_directory",
         "synthetic_population.name",
-        "synthetic_population.output_directory",
+        "population_directory",
     ]
     check_keys(config, mandatory_keys)
     directory = config["synthetic_population"]["input_directory"]
     name = config["synthetic_population"]["name"]
-    output_dir = config["synthetic_population"]["output_directory"]
+    output_dir = config["population_directory"]
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
