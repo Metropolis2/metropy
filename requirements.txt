@@ -2,6 +2,7 @@ aiohttp==3.9.5
 fiona==1.9.6
 gdal==3.7.3
 geopandas==0.14.3
+folium==0.16.0
 matplotlib==3.8.4
 networkx==3.2.1
 numpy==1.26.4

@@ -44,6 +44,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
   `metropy.synthetic_population.france`
 - Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
   `metropy.routing.opentripplanner`
+- Plotting a household from the synthetic population: `metropy.synthetic_population.plot_household`
 
 # Acknowledgments
 
