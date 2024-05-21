@@ -8,6 +8,9 @@ random_seed = 13081996
 # Path to the directory where graphs should be stored.
 graph_directory = "./output/graph/"
 
+# Path to METROPOLIS2's routing executable.
+routing_exec = "./execs/routing_cli"
+
 # Directory to be used to temporarily store files.
 tmp_directory = "./tmp/"
 
@@ -240,6 +243,10 @@ input_directory = "eqasim_output/"
 # This is the prefix used in the output files.
 name = "ile_de_france"
 
+[synthetic_population.plot]
+household_id = 19
+filename = "./output/synthetic_population/household_18.html"
+
 [calibration.tomtom]
 # Path to the output file where the TomTom requests results are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -295,3 +302,10 @@ date = "2024-05-21"
 # Otherwise, this must be a string "hh:mm:ss" specifying the departure time for the requests
 # (e.g., "08:00:00" for 8 a.m.).
 time = "arrival"
+
+[routing.walking_distance]
+# Path to the output file where the walking distances are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/routing/walking_distances.parquet"
+# Optional list of highway tags to be excluded from the list of potential origin / destination edges.
+forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]

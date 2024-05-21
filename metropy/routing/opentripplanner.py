@@ -251,7 +251,7 @@ if __name__ == "__main__":
         "population_directory",
         "crs",
         "routing.opentripplanner.url",
-        "routing.opentripplanner.output_directory",
+        "routing.opentripplanner.output_filename",
         "routing.opentripplanner.date",
         "routing.opentripplanner.time",
     ]
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
     metro_io.save_dataframe(
         df,
-        os.path.join(otp_config["output_directory"], "pt_travel_times.parquet"),
+        otp_config["output_filename"],
     )
 
     t = time.time() - t0
