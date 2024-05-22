@@ -293,8 +293,9 @@ output_file = "./output/calibration/match_results.parquet"
 [routing.opentripplanner]
 # Base URL of the OpenTripPlanner server instance.
 url = "http://0.0.0.0:8080/otp/gtfs/v1"
-# Path to the output directory where the public-transit travel times and itineraries are stored.
-output_directory = "./output/pt_routing/"
+# Path to the output file where the public-transit travel times and itineraries are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/routing/pt_travel_times.parquet"
 # Date to be used for the requests (format: yyyy-mm-dd).
 date = "2024-05-21"
 # If "departure": the trips' column "departure_time" is read and use as departure time for the requests.
