@@ -42,6 +42,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Post-processing for the map matching results: `metropy.calibration.post_map_matching`
 - [France synthetic population](https://github.com/eqasim-org/ile-de-france) import:
   `metropy.synthetic_population.france`
+- Generating vehicles for the population from French vehicle fleet data:
+  `metropy.synthetic_population.french_vehicle_fleet`
 - Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
   `metropy.routing.opentripplanner`
 - Walking distance computation: `metropy.routing.walking_distance`

@@ -243,6 +243,16 @@ input_directory = "eqasim_output/"
 # This is the prefix used in the output files.
 name = "ile_de_france"
 
+[synthetic_population.french_vehicle_fleet]
+# Path to the ADMIN-EXPRESS shapefile with the INSEE communes geometries.
+insee_filename = "./data/ADMIN-EXPRESS/1_DONNEES_LIVRAISON_2023-07-04/ADE_3-2_SHP_LAMB93_FXX/COMMUNE.shp"
+# Path to the CSV file with the French vehicle fleet data at the INSEE commune level.
+fleet_filename = "./data/parc/Donnees-sur-le-parc-de-vehicule-au-niveau-communal.2023-05.csv"
+# Year of the vehicle fleet to be used.
+fleet_year = 2022
+# Path to the output file where the household vehicles are stored.
+output_filename = "./output/synthetic_population/vehicles.parquet"
+
 [synthetic_population.plot]
 household_id = 19
 filename = "./output/synthetic_population/household_19.html"
