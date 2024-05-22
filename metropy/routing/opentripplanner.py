@@ -207,7 +207,7 @@ def run_queries(ods, config: dict):
     with ThreadPoolExecutor(max_workers=config.get("nb_threads", 12)) as executor:
         futures = [
             executor.submit(get_least_cost_itinerary, row, config)
-            for row in ods.sample(1000).iter_rows(named=True)
+            for row in ods.iter_rows(named=True)
         ]
     results = [future.result() for future in futures]
     df = pl.from_records(

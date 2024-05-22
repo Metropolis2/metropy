@@ -245,7 +245,7 @@ name = "ile_de_france"
 
 [synthetic_population.plot]
 household_id = 19
-filename = "./output/synthetic_population/household_18.html"
+filename = "./output/synthetic_population/household_19.html"
 
 [calibration.tomtom]
 # Path to the output file where the TomTom requests results are stored

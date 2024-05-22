@@ -9,7 +9,7 @@ import pyproj
 from shapely.ops import transform
 from shapely.geometry import LineString, Point
 from shapely.prepared import prep
-from matplotlib.cm import Set3
+from matplotlib import colormaps
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
@@ -216,7 +216,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie.pdf"))
     # Road type chart, weighted by length.
@@ -238,7 +238,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
 

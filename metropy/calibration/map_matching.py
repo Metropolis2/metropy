@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 
 import polars as pl
@@ -98,9 +99,11 @@ if __name__ == "__main__":
     except Exception as e:
         print(e)
     finally:
-        # Delete temporary files before returning the error.
-        os.remove(graph_filename)
-        os.remove(gps_filename)
+        # Delete temporary directory before returning the error.
+        try:
+            shutil.rmtree(config["tmp_directory"])
+        except OSError as e:
+            print(e)
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))

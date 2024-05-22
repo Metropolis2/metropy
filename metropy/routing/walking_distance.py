@@ -332,7 +332,7 @@ if __name__ == "__main__":
         config["routing"]["walking_distance"]["output_filename"],
     )
 
-    if config["routing"]["walking_disance"].get("output_graphs", False):
+    if config["routing"]["walking_distance"].get("output_graphs", False):
         if not "graph_directory" in config:
             raise Exception("Missing key `graph_directory` in config")
         graph_dir = os.path.join(config["graph_directory"], "routing.walking_distance")
