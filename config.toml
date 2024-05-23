@@ -313,6 +313,11 @@ date = "2024-05-21"
 # Otherwise, this must be a string "hh:mm:ss" specifying the departure time for the requests
 # (e.g., "08:00:00" for 8 a.m.).
 time = "arrival"
+# Number of threads to use to parallelize the computation.
+nb_threads = 8
+# Optionally, the requests can be run in batches to reduce memory use.
+# Set this to the number of trips in each batch, or comment to run a single batch.
+batch_size = 200000
 
 [routing.walking_distance]
 # Path to the output file where the walking distances are stored

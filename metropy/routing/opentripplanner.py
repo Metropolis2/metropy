@@ -1,10 +1,13 @@
 import os
 import time
 import re
+import shutil
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
 import polars as pl
+
+import metropy.utils.io as metro_io
 
 NB_TRIES = 3
 
@@ -202,7 +205,7 @@ def get_least_cost_itinerary(row, config: dict, nb_tries=0):
     return row["trip_id"], it["duration"], legs
 
 
-def run_queries(ods, config: dict):
+def run_queries_batch(ods: pl.DataFrame, config: dict):
     print("Running queries")
     with ThreadPoolExecutor(max_workers=config.get("nb_threads", 12)) as executor:
         futures = [
@@ -242,14 +245,35 @@ def run_queries(ods, config: dict):
     return df
 
 
+def run_queries(ods: pl.DataFrame, config: dict, tmp_directory: str):
+    batch_size = config.get("batch_size", len(ods))
+    if batch_size == 0:
+        batch_size = len(ods)
+    nb_batches = len(ods) // batch_size + (len(ods) % batch_size != 1)
+    if nb_batches == 1:
+        return run_queries_batch(ods, config)
+    for i in range(nb_batches):
+        df = run_queries_batch(ods[i * batch_size : (i + 1) * batch_size], config)
+        df.write_parquet(os.path.join(tmp_directory, f"otp_results_{i}.parquet"))
+        del df
+    df = pl.concat(
+        (
+            pl.scan_parquet(os.path.join(tmp_directory, f"otp_results_{i}.parquet"))
+            for i in range(nb_batches)
+        ),
+        how="vertical",
+    ).collect()
+    return df
+
+
 if __name__ == "__main__":
     from metropy.config import read_config, check_keys
-    import metropy.utils.io as metro_io
 
     config = read_config()
     mandatory_keys = [
         "population_directory",
         "crs",
+        "tmp_directory",
         "routing.opentripplanner.url",
         "routing.opentripplanner.output_filename",
         "routing.opentripplanner.date",
@@ -258,16 +282,25 @@ if __name__ == "__main__":
     check_keys(config, mandatory_keys)
     otp_config = config["routing"]["opentripplanner"]
 
+    if not os.path.isdir(config["tmp_directory"]):
+        os.makedirs(config["tmp_directory"])
+
     t0 = time.time()
 
     ods = read_origin_destination_pairs(config["population_directory"], otp_config)
 
-    df = run_queries(ods, otp_config)
+    df = run_queries(ods, otp_config, config["tmp_directory"])
 
     metro_io.save_dataframe(
         df,
         otp_config["output_filename"],
     )
+
+    # Delete temporary directory.
+    try:
+        shutil.rmtree(config["tmp_directory"])
+    except OSError as e:
+        print(e)
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
