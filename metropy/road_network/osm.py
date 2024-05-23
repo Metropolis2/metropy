@@ -634,7 +634,7 @@ class EdgeReader(osmium.SimpleHandler):
             ],
         ].copy()
 
-        edges["id"] = np.arange(len(edges))
+        edges["edge_id"] = np.arange(len(edges))
 
         self.edges_df = edges
 

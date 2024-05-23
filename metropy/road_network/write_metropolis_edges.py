@@ -10,7 +10,6 @@ import tomllib
 from collections import defaultdict
 
 import polars as pl
-import geopandas as gpd
 
 import metropy.utils.io as metro_io
 
@@ -22,13 +21,12 @@ def read_edges(input_file):
         edges = edges.filter("main")
     else:
         print("Warning: no 'main' column in edges, selecting all edges")
-    edges = edges.sort("id")
+    edges = edges.sort("edge_id")
     return edges
 
 
 def generate_road_network(edges, config):
     print("Creating Metropolis road network")
-    edges = edges.with_columns(pl.col("id").alias("edge_id"))
     edges = edges.with_columns(pl.col("speed") / 3.6)
     edges = edges.with_columns(pl.lit(True).alias("overtaking"))
     columns = ["edge_id", "source", "target", "speed", "length", "lanes", "overtaking"]

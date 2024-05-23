@@ -5,7 +5,7 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import geopandas as gpd
-from matplotlib.cm import Set3
+from matplotlib import colormaps
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
@@ -87,11 +87,11 @@ def set_default_values(gdf, config):
     # Set default bottleneck capacity.
     #  capacities = config["default_capacity"]
     #  if not isinstance(capacities, dict):
-        #  raise Exception("Invalid table `postprocess_network.default_capacity` in config")
+    #  raise Exception("Invalid table `postprocess_network.default_capacity` in config")
     #  if "capacity" in gdf.columns:
-        #  gdf["capacity"] = gdf["capacity"].fillna(gdf["road_type"].map(capacities))
+    #  gdf["capacity"] = gdf["capacity"].fillna(gdf["road_type"].map(capacities))
     #  else:
-        #  gdf["capacity"] = gdf["road_type"].map(capacities)
+    #  gdf["capacity"] = gdf["road_type"].map(capacities)
     return gdf
 
 
@@ -146,7 +146,7 @@ def select_connected(gdf):
 
 
 def reindex(gdf):
-    gdf["id"] = np.arange(len(gdf))
+    gdf["edge_id"] = np.arange(len(gdf))
     return gdf
 
 
@@ -170,6 +170,23 @@ def check(gdf, config, walk: bool):
     gdf = gdf.merge(
         source_counts.rename("source_outgoings"), left_on="source", right_index=True, how="left"
     )
+    # Add oneway column.
+    gdf = gdf.merge(
+        gdf[["source", "target"]],
+        left_on=["source", "target"],
+        right_on=["target", "source"],
+        how="left",
+        indicator="oneway",
+        suffixes=("", "_y"),
+    )
+    gdf.drop(columns=["source_y", "target_y"], inplace=True)
+    gdf.drop_duplicates(subset=["edge_id", "source", "target"], inplace=True)
+    gdf["oneway"] = (
+        gdf["oneway"]
+        .cat.remove_unused_categories()
+        .cat.rename_categories({"both": True, "left_only": False})
+        .astype(bool)
+    )
     return gdf
 
 
@@ -182,8 +199,8 @@ def clean(gdf, config, walk):
         gdf = select_connected(gdf)
     if config.get("reindex", False):
         gdf = reindex(gdf)
-    gdf.sort_values("id", inplace=True)
     gdf = check(gdf, config, walk)
+    gdf.sort_values("edge_id", inplace=True)
     return gdf
 
 
@@ -214,9 +231,13 @@ def print_stats(gdf: gpd.GeoDataFrame, walk: bool):
     print(f"Total edge length (km): {tot_length:,.3f}")
     if not walk:
         urban_length = gdf.loc[gdf["urban"], "length"].sum() / 1e3
-        print(f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})")
+        print(
+            f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})"
+        )
         rural_length = tot_length - urban_length
-        print(f"Total rural edge length (km): {rural_length:,.3f} ({rural_length / tot_length:.1%})")
+        print(
+            f"Total rural edge length (km): {rural_length:,.3f} ({rural_length / tot_length:.1%})"
+        )
 
 
 def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
@@ -301,7 +322,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie.pdf"))
     # Road type chart, weighted by length.
@@ -323,7 +344,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
     #  # Capacity distribution bar plot.
@@ -356,8 +377,10 @@ if __name__ == "__main__":
     check_keys(config, mandatory_keys)
 
     gdf = postprocess(
-        config["postprocess_network"], config["raw_edges_file"], config["clean_edges_file"],
-        walk=False
+        config["postprocess_network"],
+        config["raw_edges_file"],
+        config["clean_edges_file"],
+        walk=False,
     )
 
     if config["postprocess_network"].get("print_stats", False):
@@ -372,8 +395,10 @@ if __name__ == "__main__":
     if "postprocess_network_walk" in config:
         print("\nPostprocessing the walking road network...")
         gdf = postprocess(
-            config["postprocess_network_walk"], config["raw_walk_edges_file"],
-            config["clean_walk_edges_file"], walk=True
+            config["postprocess_network_walk"],
+            config["raw_walk_edges_file"],
+            config["clean_walk_edges_file"],
+            walk=True,
         )
 
         if config["postprocess_network_walk"].get("print_stats", False):

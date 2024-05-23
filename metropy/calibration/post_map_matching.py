@@ -31,16 +31,15 @@ def read_matches(input_file: str):
 
 
 def clean_od(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.DataFrame):
-    edge_ids = set(edges["id"])
+    edge_ids = set(edges["edge_id"])
     assert matches["cpath"].list.eval(pl.element().is_in(edge_ids).all()).list.all().all()
     # Check if the origin and destination from the requests match either the source or target node
     # from the first and last edge of the match.
     print("Cleaning origin / destination...")
     source_and_targets = pl.from_pandas(
-        edges.loc[:, ["id", "source", "target"]],
-        schema_overrides={"id": pl.UInt64, "source": pl.UInt64, "target": pl.UInt64},
+        edges.loc[:, ["edge_id", "source", "target"]],
+        schema_overrides={"edge_id": pl.UInt64, "source": pl.UInt64, "target": pl.UInt64},
     )
-    source_and_targets = source_and_targets.rename({"id": "edge_id"})
     matches = matches.with_columns(
         pl.col("cpath").list.first().alias("first_edge"),
         pl.col("cpath").list.last().alias("last_edge"),
@@ -88,8 +87,8 @@ def clean_od(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.Data
 
 def clean_paths(edges: gpd.GeoDataFrame, matches: pl.DataFrame):
     print("Cleaning paths...")
-    sources = {edge_id: source for edge_id, source in zip(edges["id"], edges["source"])}
-    targets = {edge_id: target for edge_id, target in zip(edges["id"], edges["target"])}
+    sources = {edge_id: source for edge_id, source in zip(edges["edge_id"], edges["source"])}
+    targets = {edge_id: target for edge_id, target in zip(edges["edge_id"], edges["target"])}
     new_paths = list()
     valid_paths = list()
     for path in matches["cpath"]:
@@ -121,7 +120,7 @@ def clean_paths(edges: gpd.GeoDataFrame, matches: pl.DataFrame):
 
 def clean_length(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.DataFrame):
     print("Cleaning path length difference...")
-    lengths = {edge_id: length for edge_id, length in zip(edges["id"], edges["length"])}
+    lengths = {edge_id: length for edge_id, length in zip(edges["edge_id"], edges["length"])}
     matches = matches.with_columns(
         pl.col("cpath").list.eval(pl.element().replace(lengths).sum()).list.first().alias("length")
     )
@@ -145,8 +144,8 @@ def clean_length(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.
 def clean_covered(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl.DataFrame):
     print("Check if matched path is within 100m of TomTom path...")
     print("Building points...")
-    edges = edges.loc[edges["id"].isin(matches["cpath"].explode().to_pandas())].copy()
-    edge_geoms = edges.set_index("id").geometry
+    edges = edges.loc[edges["edge_id"].isin(matches["cpath"].explode().to_pandas())].copy()
+    edge_geoms = edges.set_index("edge_id").geometry
     xs = edge_geoms.apply(lambda geom: geom.coords[0][0])
     ys = edge_geoms.apply(lambda geom: geom.coords[0][1])
     source_points = gpd.GeoSeries(

@@ -15,8 +15,8 @@ def get_graph(filename: str, crs: str, tmp_dir: str):
     Returns the filename of the saved file.
     """
     print("Reading edges")
-    gdf = metro_io.read_geodataframe(filename, columns=["id", "source", "target", "geometry"])
-    gdf.set_index("id", inplace=True, drop=True)
+    gdf = metro_io.read_geodataframe(filename, columns=["edge_id", "source", "target", "geometry"])
+    gdf.set_index("edge_id", inplace=True, drop=True)
     gdf.sort_index(inplace=True)
     gdf.to_crs(crs, inplace=True)
     gdf = gdf[["source", "target", "geometry"]].copy()

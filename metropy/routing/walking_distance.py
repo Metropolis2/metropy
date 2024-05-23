@@ -46,9 +46,8 @@ def read_trips(input_directory: str):
 def read_edges(filename: str, crs: str, config: dict):
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
-        filename, columns=["id", "source", "target", "length", "road_type", "geometry"]
+        filename, columns=["edge_id", "source", "target", "length", "road_type", "geometry"]
     )
-    gdf.rename(columns={"id": "edge_id"}, inplace=True)
     gdf.to_crs(crs, inplace=True)
     if "forbidden_road_types" in config:
         assert isinstance(config["forbidden_road_types"], list)

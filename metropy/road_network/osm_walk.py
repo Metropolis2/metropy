@@ -5,7 +5,7 @@ import numpy as np
 import geopandas as gpd
 import osmium
 from shapely.geometry import LineString
-from matplotlib.cm import Set3
+from matplotlib import colormaps
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
@@ -96,7 +96,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie.pdf"))
     # Road type chart, weighted by length.
@@ -118,7 +118,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=Set3.colors,
+        colors=colormaps["Set3"],
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
 
@@ -260,7 +260,7 @@ class EdgeReader(osmium.SimpleHandler):
                 "road_type",
             ],
         ].copy()
-        edges["id"] = np.arange(len(edges))
+        edges["edge_id"] = np.arange(len(edges))
         self.edges_df = edges
 
     def write_edges(self, output_file):
