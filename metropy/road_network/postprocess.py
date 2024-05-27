@@ -5,7 +5,6 @@ import numpy as np
 import networkx as nx
 import pandas as pd
 import geopandas as gpd
-from matplotlib import colormaps
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
@@ -58,17 +57,15 @@ def set_default_values(gdf, config):
             raise Exception(
                 "Missing or invalid table `postprocess_network.default_speed.rural` in config"
             )
-        urban_speeds = pd.DataFrame(
-            list(urban_speeds.values()),
-            index=list(urban_speeds.keys()),
-            columns=["urban_speed"],
+        urban_speeds_df = pd.DataFrame(
+            pd.Series(urban_speeds.values(), name="urban_speed"),
+            index=pd.Series(urban_speeds.keys()),
         )
-        rural_speeds = pd.DataFrame(
-            list(rural_speeds.values()),
-            index=list(rural_speeds.keys()),
-            columns=["rural_speed"],
+        rural_speeds_df = pd.DataFrame(
+            pd.Series(rural_speeds.values(), name="rural_speed"),
+            index=pd.Series(rural_speeds.keys()),
         )
-        default_speeds = pd.concat((urban_speeds, rural_speeds), axis=1)
+        default_speeds = pd.concat((urban_speeds_df, rural_speeds_df), axis=1)
         gdf = gdf.merge(default_speeds, left_on="road_type", right_index=True, how="left")
         gdf.loc[gdf["default_speed"] & gdf["urban"], "speed"] = gdf["urban_speed"]
         gdf.loc[gdf["default_speed"] & ~gdf["urban"], "speed"] = gdf["rural_speed"]
@@ -184,7 +181,7 @@ def check(gdf, config, walk: bool):
     gdf["oneway"] = (
         gdf["oneway"]
         .cat.remove_unused_categories()
-        .cat.rename_categories({"both": True, "left_only": False})
+        .cat.rename_categories({"both": False, "left_only": True})
         .astype(bool)
     )
     return gdf
@@ -227,6 +224,8 @@ def print_stats(gdf: gpd.GeoDataFrame, walk: bool):
         print(
             f"Number of edges with give_way sign: {nb_give_way_signs:,} ({nb_give_way_signs / nb_edges:.1%})"
         )
+        nb_tolls = gdf["toll"].sum()
+        print(f"Number of edges with toll: {nb_tolls:,} ({nb_tolls / nb_edges:.1%})")
     tot_length = gdf["length"].sum() / 1e3
     print(f"Total edge length (km): {tot_length:,.3f}")
     if not walk:
@@ -322,8 +321,9 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=colormaps["Set3"],
+        colors=mpl.COLOR_LIST,
     )
+    fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "road_type_pie.pdf"))
     # Road type chart, weighted by length.
     fig, ax = mpl.get_figure(fraction=0.8)
@@ -344,8 +344,9 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=colormaps["Set3"],
+        colors=mpl.COLOR_LIST,
     )
+    fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
     #  # Capacity distribution bar plot.
     #  fig, ax = mpl.get_figure(fraction=0.8)

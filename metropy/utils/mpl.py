@@ -1,9 +1,8 @@
-import os
-
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 CMP = mpl.colormaps["Set2"]
+COLOR_LIST = mpl.colormaps["Set3"].colors
 
 PARAMETERS = {
     "text.usetex": True,

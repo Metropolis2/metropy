@@ -9,7 +9,6 @@ import pyproj
 from shapely.ops import transform
 from shapely.geometry import LineString, Point
 from shapely.prepared import prep
-from matplotlib import colormaps
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
@@ -123,6 +122,8 @@ def print_stats(gdf: gpd.GeoDataFrame):
     print(
         f"Number of edges with give_way sign: {nb_give_way_signs:,} ({nb_give_way_signs / nb_edges:.1%})"
     )
+    nb_tolls = gdf["toll"].sum()
+    print(f"Number of edges with toll: {nb_tolls:,} ({nb_tolls / nb_edges:.1%})")
     tot_length = gdf["length"].sum() / 1e3
     print(f"Total edge length (km): {tot_length:,.3f}")
     urban_length = gdf.loc[gdf["urban"], "length"].sum() / 1e3
@@ -216,7 +217,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=colormaps["Set3"],
+        colors=mpl.COLOR_LIST,
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie.pdf"))
     # Road type chart, weighted by length.
@@ -238,7 +239,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
-        colors=colormaps["Set3"],
+        colors=mpl.COLOR_LIST,
     )
     fig.savefig(os.path.join(graph_dir, "road_type_pie_length_weights.pdf"))
 

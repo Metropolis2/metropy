@@ -224,7 +224,7 @@ highways = [
 min_length = 1
 # Whether the duplicate edges (edges with same source and target) should be removed.
 # Only the edge with the smallest free-flow travel time is kept.
-remove_duplicates = true
+remove_duplicates = false
 # Whether the network should be restricted to the largest strongly connected component of the
 # underlying graph.
 # Warning. If `false`, some origin-destination pairs might not be feasible.
