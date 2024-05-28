@@ -29,7 +29,7 @@ raw_walk_edges_file = "./output/road_network/edges_walk_raw.parquet"
 clean_walk_edges_file = "./output/road_network/edges_walk_clean.parquet"
 
 # Path to the directory where the population files are stored.
-population_directory = "./output/synthetic_population/"
+population_directory = "./output/od_matrix_population/"
 
 [metropolis]
 # Directory where the run input files should be stored.
@@ -257,6 +257,45 @@ output_filename = "./output/synthetic_population/vehicles.parquet"
 household_id = 19
 filename = "./output/synthetic_population/household_19.html"
 
+[od_matrix]
+# Path to the shapefile with the zoning geometries.
+# The file must have columns `zone_id` and `geometry`.
+zone_filename = "./data/zonage_modus/zones_modus.parquet"
+# Path to the OD matrix.
+# The file must have columns `origin`, `destination` and `count`.
+# Extensions: CSV, Parquet.
+od_matrix_filename = "./data/od_matrix/od_matrix_modus_ref.parquet"
+
+[od_matrix.weights.urban]
+motorway = 0
+trunk = 0
+primary = 1
+secondary = 1
+tertiary = 1
+motorway_link = 0
+trunk_link = 0
+primary_link = 1
+secondary_link = 1
+tertiary_link = 1
+living_street = 8
+unclassified = 1
+residential = 4
+
+[od_matrix.weights.rural]
+motorway = 0
+trunk = 0
+primary = 24
+secondary = 22
+tertiary = 19
+motorway_link = 0
+trunk_link = 0
+primary_link = 11
+secondary_link = 9
+tertiary_link = 7
+living_street = 35
+unclassified = 13
+residential = 18
+
 [calibration.tomtom]
 # Path to the output file where the TomTom requests results are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -325,3 +364,5 @@ batch_size = 200000
 output_filename = "./output/routing/walking_distances.parquet"
 # Optional list of highway tags to be excluded from the list of potential origin / destination edges.
 forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
+# Whether graphs of the variables should be saved.
+output_graphs = true
