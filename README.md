@@ -49,6 +49,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
   `metropy.routing.opentripplanner`
 - Walking distance computation: `metropy.routing.walking_distance`
+- Compute pollutant emissions and fuel consumption with the EMISENS model:
+  `metropy.emissions.emisens`
 
 # Acknowledgments
 

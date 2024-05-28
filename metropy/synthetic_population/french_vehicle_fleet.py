@@ -61,6 +61,21 @@ def read_vehicle_fleet(filename: str, df: pl.DataFrame, year: int):
     vehicles = vehicles.filter(pl.col("CRITAIR") != "Inconnu")
     # Consider only cars.
     vehicles = vehicles.filter(pl.col("CLASSE_VEHICULE") == "vp")
+    # Normalize names.
+    vehicles = vehicles.with_columns(
+        pl.col("CARBURANT")
+        .str.to_lowercase()
+        .str.replace_all(" ", "_")
+        .str.replace_all("'", "")
+        .str.replace_all("é", "e")
+        .str.replace_all("è", "e"),
+        pl.col("CRITAIR")
+        .str.to_lowercase()
+        .str.replace_all(" ", "_")
+        .str.replace_all("'", "")
+        .str.replace_all("é", "e")
+        .str.replace_all("è", "e"),
+    )
     # Set CARBURANT and CRITAIR as categorical variables.
     vehicles = vehicles.with_columns(
         pl.col("CARBURANT").cast(pl.Categorical),
@@ -72,7 +87,8 @@ def read_vehicle_fleet(filename: str, df: pl.DataFrame, year: int):
     return vehicles
 
 
-def draw_vehicles(df: pl.DataFrame, vehicles: pl.DataFrame):
+def draw_vehicles(df: pl.DataFrame, vehicles: pl.DataFrame, random_seed=None):
+    rng = np.random.default_rng(random_seed)
     print("Drawing vehicles for each household...")
     vehicles_by_insee = vehicles.partition_by(["insee"], as_dict=True)
     n = int(df["number_of_vehicles"].sum())
@@ -84,7 +100,7 @@ def draw_vehicles(df: pl.DataFrame, vehicles: pl.DataFrame):
         m = int(df["number_of_vehicles"].sum())
         pool = vehicles_by_insee[(insee_code,)]
         probs = pool["nb_vehicles"] / pool["nb_vehicles"].sum()
-        draws = np.random.choice(np.arange(len(pool)), size=m, p=probs, replace=True)
+        draws = rng.choice(np.arange(len(pool)), size=m, p=probs, replace=True)
         drawn_household_ids[i : i + m] = np.repeat(df["household_id"], df["number_of_vehicles"])
         drawn_fuel_types[i : i + m] = pool["CARBURANT"].to_physical()[draws]
         drawn_critairs[i : i + m] = pool["CRITAIR"].to_physical()[draws]
@@ -99,12 +115,8 @@ def draw_vehicles(df: pl.DataFrame, vehicles: pl.DataFrame):
     fuel_type_cats = vehicles["CARBURANT"].cat.get_categories()
     critair_cats = vehicles["CRITAIR"].cat.get_categories()
     df = df.with_columns(
-        pl.col("fuel_type")
-        .replace(list(range(len(fuel_type_cats))), fuel_type_cats)
-        .cast(pl.Categorical),
-        pl.col("critair")
-        .replace(list(range(len(critair_cats))), critair_cats)
-        .cast(pl.Categorical),
+        pl.col("fuel_type").replace(list(range(len(fuel_type_cats))), fuel_type_cats),
+        pl.col("critair").replace(list(range(len(critair_cats))), critair_cats),
     )
     print(
         "Fuel shares:\n{}".format(
@@ -114,6 +126,36 @@ def draw_vehicles(df: pl.DataFrame, vehicles: pl.DataFrame):
     print(
         "Critair shares:\n{}".format(
             df.group_by("critair").agg((pl.len() / len(df)).alias("share")).sort("share")
+        )
+    )
+    return df
+
+
+def add_european_standard(df: pl.DataFrame, car_types: dict):
+    data = list()
+    for fuel_type, ft_dict in car_types.items():
+        for critair, euro_std in ft_dict.items():
+            data.append((fuel_type, critair, euro_std))
+    car_type_df = pl.DataFrame(
+        data,
+        schema={
+            "fuel_type": pl.String,
+            "critair": pl.String,
+            "euro_standard": pl.String,
+        },
+    )
+    df = df.join(car_type_df, on=["fuel_type", "critair"], how="left")
+    if df["euro_standard"].is_null().any():
+        print("Warning: Euro standard is unknown for the following car types:")
+        null_df = (
+            df.filter(pl.col("euro_standard").is_null())
+            .unique(subset=["fuel_type", "critair"])
+            .select("fuel_type", "critair")
+        )
+        print(null_df)
+    print(
+        "Euro standard shares:\n{}".format(
+            df.group_by("euro_standard").agg((pl.len() / len(df)).alias("share")).sort("share")
         )
     )
     return df
@@ -130,6 +172,7 @@ if __name__ == "__main__":
         "synthetic_population.french_vehicle_fleet.fleet_filename",
         "synthetic_population.french_vehicle_fleet.fleet_year",
         "synthetic_population.french_vehicle_fleet.output_filename",
+        "synthetic_population.french_vehicle_fleet.car_types",
     ]
     check_keys(config, mandatory_keys)
     this_config = config["synthetic_population"]["french_vehicle_fleet"]
@@ -144,7 +187,9 @@ if __name__ == "__main__":
 
     vehicles = read_vehicle_fleet(this_config["fleet_filename"], df, this_config["fleet_year"])
 
-    df = draw_vehicles(df, vehicles)
+    df = draw_vehicles(df, vehicles, config.get("random_seed"))
+
+    df = add_european_standard(df, this_config["car_types"])
 
     metro_io.save_dataframe(
         df,

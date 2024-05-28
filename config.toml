@@ -32,8 +32,10 @@ clean_walk_edges_file = "./output/road_network/edges_walk_clean.parquet"
 population_directory = "./output/od_matrix_population/"
 
 [metropolis]
-# Directory where the run input files should be stored.
+# Directory where the run input files are stored.
 input_directory = "./run/"
+# Directory where the run output files are stored.
+output_directory = "./run/output/"
 # Format to use for the input and output files ("CSV" or "Parquet").
 format = "Parquet"
 
@@ -253,6 +255,31 @@ fleet_year = 2022
 # Path to the output file where the household vehicles are stored.
 output_filename = "./output/synthetic_population/vehicles.parquet"
 
+[synthetic_population.french_vehicle_fleet.car_types]
+# Conversion from fuel type + Crit'Air to European emission standard.
+# https://en.wikipedia.org/wiki/European_emission_standards
+essence.critair_1 = "PC_petrol_euro_5_6"
+essence.critair_2 = "PC_petrol_euro_4"
+essence.critair_3 = "PC_petrol_euro_2_3"
+essence.non_classe = "PC_petrol_euro_1"
+essence_hnr.critair_1 = "PC_petrol_euro_5_6"
+essence_hnr.critair_2 = "PC_petrol_euro_4"
+essence_hnr.critair_3 = "PC_petrol_euro_2_3"
+diesel.critair_2 = "PC_diesel_euro_5_6"
+diesel.critair_3 = "PC_diesel_euro_4"
+diesel.critair_4 = "PC_diesel_euro_3"
+diesel.critair_5 = "PC_diesel_euro_2"
+diesel.non_classe = "PC_diesel_euro_1"
+diesel_hnr.critair_2 = "PC_diesel_euro_5_6"
+hybride_rechargeable.critair_1 = "PC_hybrid_petrol"
+hybride_rechargeable.critair_2 = "PC_hybrid_petrol"
+electrique_et_hydrogene.critair_e = "PC_electric"
+electrique_et_hydrogene.non_classe = "PC_electric"
+gaz_et_inconnu.critair_1 = "PC_electric"
+gaz_et_inconnu.critair_2 = "PC_electric"
+gaz_et_inconnu.critair_3 = "PC_electric"
+gaz_et_inconnu.non_classe = "PC_electric"
+
 [synthetic_population.plot]
 household_id = 19
 filename = "./output/synthetic_population/household_19.html"
@@ -366,3 +393,19 @@ output_filename = "./output/routing/walking_distances.parquet"
 forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 # Whether graphs of the variables should be saved.
 output_graphs = true
+
+[emisens]
+# Path to the CSV file with emission factors.
+# For now, the only supported format is CSV or Parquet with columns `car_type` (European emission
+# standard), `pollutant` ("CO", "NOx", "PM" or "EC") and `[hot|cold]_[0-9]*-[0-9]*` (emission factor
+# for cold or hot emissions, with speed interval).
+emission_factor_file = "./data/emission_factors_france.csv"
+# List of pollutants to be computed.
+# Possible values: "CO", "NOx", "PM", "EC".
+# Specify "EC" (energy consumption) to also compute CO2 and fuel consumption.
+pollutants = ["CO", "NOx", "PM", "EC"]
+# Threshold of distance traveled (in kilometers) for cold emissions.
+cold_emissions_threshold = 11.33
+# Path to the output file where the emissions are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/emissions/emissions.parquet"
