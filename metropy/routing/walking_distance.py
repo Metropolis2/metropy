@@ -39,7 +39,7 @@ def read_trips(input_directory: str):
         ),
         how="vertical",
     ).unique()
-    print(f"Number of unique origin / destination points: {len(nodes)}")
+    print(f"Number of unique origin / destination points: {len(nodes):,}")
     return df, nodes
 
 
@@ -227,38 +227,38 @@ def merge(trips: pl.DataFrame, queries: pl.DataFrame, results: pl.DataFrame):
     return trips
 
 
-def plot_variables(trips: pl.DataFrame, graph_dir: str):
+def plot_variables(df: pl.DataFrame, trips: pl.DataFrame, graph_dir: str):
     print("Generating graphs of the variables")
     if not os.path.isdir(graph_dir):
         os.makedirs(graph_dir)
-    # Distance between origin and start node.
+    # Distance between origin / destination point and nearest edge.
     fig, ax = mpl.get_figure(fraction=0.8)
-    m = max(0.0, np.log(trips.select("origin_node_dist").min().item()))
+    m = max(0.0, np.log(df.select("edge_dist").min().item()))
     bins = (
-        np.logspace(m, np.log1p(trips.select("origin_node_dist").max().item()), 50, base=np.e)
+        np.logspace(m, np.log1p(df.select("edge_dist").max().item()), 50, base=np.e)
         - 1.0
     )
-    ax.hist(trips["origin_node_dist"], bins=bins, color=mpl.CMP(0))
-    ax.set_xlabel("Distance origin / start node (meters)")
+    ax.hist(df["edge_dist"], bins=bins, color=mpl.CMP(0))
+    ax.set_xlabel("Distance to nearest edge (meters)")
     ax.set_xscale("log")
     ax.set_ylabel("Count")
     fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "origin_node_dist_distribution.pdf"))
-    # Distance between destination and end node.
+    fig.savefig(os.path.join(graph_dir, "edge_dist_distribution.pdf"))
+    # Distance between origin / destination and start / end node.
     fig, ax = mpl.get_figure(fraction=0.8)
-    m = max(0.0, np.log(trips.select("destination_node_dist").min().item()))
+    m = max(0.0, np.log(df.select("node_dist").min().item()))
     bins = (
         np.logspace(
-            m, np.log1p(trips.select("destination_node_dist").max().item()), 50, base=np.e
+            m, np.log1p(df.select("node_dist").max().item()), 50, base=np.e
         )
         - 1.0
     )
-    ax.hist(trips["destination_node_dist"], bins=bins, color=mpl.CMP(0))
-    ax.set_xlabel("Distance destination / end node (meters)")
+    ax.hist(df["node_dist"], bins=bins, color=mpl.CMP(0))
+    ax.set_xlabel("Distance to start / end node (meters)")
     ax.set_xscale("log")
     ax.set_ylabel("Count")
     fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "destination_node_dist_distribution.pdf"))
+    fig.savefig(os.path.join(graph_dir, "node_dist_distribution.pdf"))
     # Walking distance network.
     fig, ax = mpl.get_figure(fraction=0.8)
     m = max(0.0, np.log(trips.select("distance_network").min().item()))
@@ -335,7 +335,7 @@ if __name__ == "__main__":
         if not "graph_directory" in config:
             raise Exception("Missing key `graph_directory` in config")
         graph_dir = os.path.join(config["graph_directory"], "routing.walking_distance")
-        plot_variables(trips, graph_dir)
+        plot_variables(df, trips, graph_dir)
 
     # Clean the temporary directory.
     try:
