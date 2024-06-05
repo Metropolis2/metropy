@@ -54,7 +54,7 @@ def scan_route_dataframe(filename: str):
 
 def read_edges(filename: str):
     print("Reading edges...")
-    gdf = metro_io.read_geodataframe(filename, columns=["edge_id", "speed"])
+    gdf = metro_io.read_geodataframe(filename, columns=["edge_id", "length"])
     # Set length in km.
     gdf["length"] /= 1000
     df = pl.from_pandas(gdf, schema_overrides={"id": pl.UInt64})
