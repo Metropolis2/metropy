@@ -293,7 +293,7 @@ zone_filename = "./data/zonage_modus/zones_modus.parquet"
 # Extensions: CSV, Parquet.
 od_matrix_filename = "./data/od_matrix/od_matrix_modus_ref.parquet"
 
-[od_matrix.weights.urban]
+[od_matrix.weights.rural]
 motorway = 0
 trunk = 0
 primary = 1
@@ -308,7 +308,7 @@ living_street = 8
 unclassified = 1
 residential = 4
 
-[od_matrix.weights.rural]
+[od_matrix.weights.urban]
 motorway = 0
 trunk = 0
 primary = 24
