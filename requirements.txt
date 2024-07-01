@@ -12,4 +12,4 @@ polars==0.20.16
 pyarrow==15.0.2
 pyproj==3.6.1
 shapely==2.0.3
-tqdm==4.66.2
+tqdm==4.66.3
