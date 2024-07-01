@@ -396,6 +396,19 @@ gtfs_zipfile = "./data/IDFM-gtfs.zip"
 # (possible extensions: parquet, geojson, fgb, shp).
 output_filename = "./output/public_transit/global_flows.parquet"
 
+[public_transit.chevelus]
+# Path to the GTFS zipfile.
+gtfs_zipfile = "./data/IDFM-gtfs.zip"
+# Id of the route to be selected.
+route_id = "GPE:18"
+# Id of the start stop to be selected.
+from_stop_id = "GA47"
+# Id of the end stop to be selected.
+to_stop_id = "GA48"
+# Path to the output file with the chevelus
+# (possible extensions: parquet, geojson, fgb, shp).
+output_filename = "./output/public_transit/chevelus.parquet"
+
 [routing.walking_distance]
 # Path to the output file where the walking distances are stored
 # (possible extensions: Parquet, CSV).
