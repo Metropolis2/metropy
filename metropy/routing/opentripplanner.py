@@ -95,6 +95,8 @@ def read_origin_destination_pairs(input_directory: str, config: dict):
         columns.append("departure_time")
     elif config["time"] == "arrival":
         columns.append("arrival_time")
+    elif config["time"] == "tstar":
+        columns.append("tstar")
     df = pl.read_parquet(
         os.path.join(input_directory, "trips.parquet"),
         columns=columns,
@@ -103,7 +105,7 @@ def read_origin_destination_pairs(input_directory: str, config: dict):
         (pl.col("origin_lng") != pl.col("destination_lng"))
         | (pl.col("origin_lat") != pl.col("destination_lat"))
     )
-    if config["time"] == "departure" or config["time"] == "arrival":
+    if config["time"] in ("departure", "arrival", "tstar"):
         df = df.rename({columns[-1]: "time"}).with_columns(pl.col("time").cast(pl.UInt64))
         df = df.with_columns(
             pl.format(
@@ -115,10 +117,10 @@ def read_origin_destination_pairs(input_directory: str, config: dict):
         )
     else:
         assert re.fullmatch(
-            "[0-9][0-9]:[0-9][0-9]", config["time"]
+            "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]", config["time"]
         ), f"Invalid key `routing.opentripplanner.time`: {config['time']}"
         df = df.with_columns(pl.lit(config["time"]).alias("time"))
-    df = df.with_columns(pl.lit(config["time"] == "arrival").alias("arrive_by"))
+    df = df.with_columns(pl.lit(config["time"] in ("arrival", "tstar")).alias("arrive_by"))
     return df
 
 

@@ -379,6 +379,7 @@ output_filename = "./output/routing/pt_travel_times.parquet"
 date = "2024-05-21"
 # If "departure": the trips' column "departure_time" is read and use as departure time for the requests.
 # If "arrival": the trips' column "arrival_time" is read and use as arrival time for the requests.
+# If "tstar": the trips' column "tstar" is read and use as arrival time for the requests.
 # Otherwise, this must be a string "hh:mm:ss" specifying the departure time for the requests
 # (e.g., "08:00:00" for 8 a.m.).
 time = "arrival"
