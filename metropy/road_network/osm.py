@@ -606,34 +606,32 @@ class EdgeReader(osmium.SimpleHandler):
     def post_process(self, urban_area, metric_crs: str):
         edges = gpd.GeoDataFrame(self.edges, crs="EPSG:4326")
 
+        columns = [
+            "geometry",
+            "source",
+            "target",
+            "length",
+            "speed",
+            "lanes",
+            "osm_id",
+            "name",
+            "roundabout",
+            "traffic_signals",
+            "stop_sign",
+            "give_way_sign",
+            "toll",
+            "road_type",
+        ]
         if not urban_area is None:
             edges["urban"] = [urban_area.contains(geom) for geom in edges.geometry]
+            columns.append("urban")
 
         # Compute length.
         edges["length"] = edges.geometry.to_crs(metric_crs).length
 
         print("Number of edges: {}".format(len(edges)))
 
-        edges = edges.loc[
-            :,
-            [
-                "geometry",
-                "source",
-                "target",
-                "length",
-                "speed",
-                "lanes",
-                "urban",
-                "osm_id",
-                "name",
-                "roundabout",
-                "traffic_signals",
-                "stop_sign",
-                "give_way_sign",
-                "toll",
-                "road_type",
-            ],
-        ].copy()
+        edges = edges.loc[:, columns].copy()
 
         edges["edge_id"] = np.arange(len(edges))
 

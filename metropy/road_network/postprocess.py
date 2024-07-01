@@ -57,14 +57,8 @@ def set_default_values(gdf, config):
             raise Exception(
                 "Missing or invalid table `postprocess_network.default_speed.rural` in config"
             )
-        urban_speeds_df = pd.DataFrame(
-            pd.Series(urban_speeds.values(), name="urban_speed"),
-            index=pd.Series(urban_speeds.keys()),
-        )
-        rural_speeds_df = pd.DataFrame(
-            pd.Series(rural_speeds.values(), name="rural_speed"),
-            index=pd.Series(rural_speeds.keys()),
-        )
+        urban_speeds_df = pd.Series(urban_speeds, name="urban_speed")
+        rural_speeds_df = pd.Series(rural_speeds, name="rural_speed")
         default_speeds = pd.concat((urban_speeds_df, rural_speeds_df), axis=1)
         gdf = gdf.merge(default_speeds, left_on="road_type", right_index=True, how="left")
         gdf.loc[gdf["default_speed"] & gdf["urban"], "speed"] = gdf["urban_speed"]
@@ -75,12 +69,14 @@ def set_default_values(gdf, config):
         if not isinstance(speeds, dict):
             raise Exception("Invalid table `postprocess_network.default_speed` in config")
         gdf["speed"] = gdf["speed"].fillna(gdf["road_type"].map(speeds))
+    assert not gdf["speed"].isna().any()
     # Set default number of lanes.
     gdf["default_lanes"] = gdf["lanes"].isna()
     nb_lanes = config["default_nb_lanes"]
     if not isinstance(nb_lanes, dict):
         raise Exception("Invalid table `postprocess_network.default_nb_lanes` in config")
     gdf["lanes"] = gdf["lanes"].fillna(gdf["road_type"].map(nb_lanes))
+    assert not gdf["lanes"].isna().any()
     # Set default bottleneck capacity.
     #  capacities = config["default_capacity"]
     #  if not isinstance(capacities, dict):
@@ -208,10 +204,11 @@ def print_stats(gdf: gpd.GeoDataFrame, walk: bool):
     nb_edges = len(gdf)
     print(f"Number of edges: {nb_edges:,}")
     if not walk:
-        nb_urbans = gdf["urban"].sum()
-        print(f"Number of urban edges: {nb_urbans:,} ({nb_urbans / nb_edges:.1%})")
-        nb_rurals = nb_edges - nb_urbans
-        print(f"Number of rural edges: {nb_rurals:,} ({nb_rurals / nb_edges:.1%})")
+        if "urban" in gdf.columns:
+            nb_urbans = gdf["urban"].sum()
+            print(f"Number of urban edges: {nb_urbans:,} ({nb_urbans / nb_edges:.1%})")
+            nb_rurals = nb_edges - nb_urbans
+            print(f"Number of rural edges: {nb_rurals:,} ({nb_rurals / nb_edges:.1%})")
         nb_roundabouts = gdf["roundabout"].sum()
         print(f"Number of roundabout edges: {nb_roundabouts:,} ({nb_roundabouts / nb_edges:.1%})")
         nb_traffic_signals = gdf["traffic_signals"].sum()
@@ -228,7 +225,7 @@ def print_stats(gdf: gpd.GeoDataFrame, walk: bool):
         print(f"Number of edges with toll: {nb_tolls:,} ({nb_tolls / nb_edges:.1%})")
     tot_length = gdf["length"].sum() / 1e3
     print(f"Total edge length (km): {tot_length:,.3f}")
-    if not walk:
+    if not walk and "urban" in gdf.columns:
         urban_length = gdf.loc[gdf["urban"], "length"].sum() / 1e3
         print(
             f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})"
