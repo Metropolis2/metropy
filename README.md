@@ -46,6 +46,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
   `metropy.synthetic_population.french_vehicle_fleet`
 - Plotting a household from the synthetic population: `metropy.synthetic_population.plot_household`
 - Generating a population from an origin-destination matrix: `metropy.od_matrix.disaggregate`
+- Splitting road network in main and secondary parts: `metropy.routing.car_split`
 - Walking distance computation: `metropy.routing.walking_distance`
 - Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
   `metropy.routing.opentripplanner`

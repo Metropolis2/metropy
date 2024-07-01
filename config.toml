@@ -405,6 +405,33 @@ forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 # Whether graphs of the variables should be saved.
 output_graphs = true
 
+[routing.car_split]
+# List of road type values that should be part of the main road-network graph.
+main_road_types = [
+  "motorway",
+  "motorway_link",
+  "trunk",
+  "trunk_link",
+  "primary",
+  "primary_link",
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  # "living_street",
+  # "unclassified",
+  # "residential",
+  # "road",
+  # "service",
+]
+# Optional list of highway tags to be excluded from the list of potential origin / destination edges.
+forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
+# Path to the output file where the car trip details are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/routing/car_split.parquet"
+# Whether graphs of the variables should be saved.
+output_graphs = true
+
 [emisens]
 # Path to the CSV file with emission factors.
 # For now, the only supported format is CSV or Parquet with columns `car_type` (European emission
