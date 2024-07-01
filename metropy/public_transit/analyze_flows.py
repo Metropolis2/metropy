@@ -3,6 +3,7 @@ from zipfile import ZipFile
 import os
 from itertools import pairwise
 
+import numpy as np
 import polars as pl
 import geopandas as gpd
 import networkx as nx
@@ -11,10 +12,6 @@ from shapely.geometry import LineString
 
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
-
-# Path to the output file of the PT itineraries with flows.
-OUTPUT_FILE = "./output/public_transit/global_flows.parquet"
-
 
 def read_pt_itineraries(filename: str):
     print("Reading public-transit itineraries...")
@@ -176,7 +173,7 @@ def print_stats_and_plot_graphs(df: pl.DataFrame, gtfs_zipfile: str, graph_dir: 
         gtfs_routes.select("route_id", pl.col("route_long_name").alias("route_name")),
         on="route_id",
         how="left",
-        coalesce=False,
+        coalesce=True,
     )
     print("Most used PT lines:")
     for mode_df in routes.partition_by(["mode"]):
@@ -247,7 +244,7 @@ def print_stats_and_plot_graphs(df: pl.DataFrame, gtfs_zipfile: str, graph_dir: 
         gtfs_stops,
         on="stop_id",
         how="left",
-        coalesce=False,
+        coalesce=True,
     )
     print("Most used stops:")
     for row in stops[:10].iter_rows(named=True):
@@ -525,11 +522,25 @@ def get_direct_connections(stop_list):
 
 
 def get_indirect_connections(stop_list):
-    return [
-        f"{from_stop}->{to_stop}"
-        for i, from_stop in enumerate(stop_list[:-2])
-        for to_stop in stop_list[i + 2 :]
-    ]
+    unique_stops = set(stop_list)
+    if len(stop_list) == len(unique_stops):
+        return [
+            f"{from_stop}->{to_stop}"
+            for i, from_stop in enumerate(stop_list[:-2])
+            for to_stop in stop_list[i + 2 :]
+        ]
+    else:
+        # There is a loop in the trip.
+        unique, counts = np.unique(stop_list, return_counts=True)
+        looped_stops = set(unique[counts > 1])
+        assert len(looped_stops) > 0
+        return [
+            f"{from_stop}->{to_stop}"
+            for i, from_stop in enumerate(stop_list[:-2])
+            for to_stop in stop_list[i + 2 :]
+            if from_stop not in looped_stops and to_stop not in looped_stops
+        ]
+
 
 
 def get_linestring(coords):
