@@ -292,6 +292,9 @@ zone_filename = "./data/zonage_modus/zones_modus.parquet"
 # The file must have columns `origin`, `destination` and `count`.
 # Extensions: CSV, Parquet.
 od_matrix_filename = "./data/od_matrix/od_matrix_modus_ref.parquet"
+# Maximum number of unique nodes that can be selected as origin / destination in each zone.
+# Comment to allow unlimited number of unique nodes.
+# max_nb_nodes_per_zone = 100
 
 [od_matrix.weights.rural]
 motorway = 0
@@ -391,7 +394,6 @@ gtfs_zipfile = "./data/IDFM-gtfs.zip"
 # Path to the output file with the public-transit flows
 # (possible extensions: parquet, geojson, fgb, shp).
 output_filename = "./output/public_transit/global_flows.parquet"
-
 
 [routing.walking_distance]
 # Path to the output file where the walking distances are stored

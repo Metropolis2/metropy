@@ -43,7 +43,9 @@ def read_edges(filename: str, crs: str, config: dict):
     nodes["lng"] = nodes.geometry.apply(lambda g: g.coords[0][0])
     nodes["lat"] = nodes.geometry.apply(lambda g: g.coords[0][1])
     df = pl.from_pandas(
-        nodes[["lng", "lat"]], include_index=True, schema_overrides={"source": pl.UInt64}
+        nodes[["lng", "lat"]],
+        include_index=True,
+        schema_overrides={"source": pl.UInt64},
     ).rename({"source": "node_id"})
     return gdf, df
 
@@ -86,16 +88,28 @@ def read_od_matrix(filename: str):
     return df
 
 
-def generate_origin_destination(df: pl.DataFrame, od_matrix: pl.DataFrame, random_seed=None):
+def generate_origin_destination(
+    df: pl.DataFrame, od_matrix: pl.DataFrame, config: dict, random_seed=None
+):
     rng = np.random.default_rng(random_seed)
+    if "max_nb_nodes_per_zone" in config:
+        m: int = config["max_nb_nodes_per_zone"]
+    else:
+        m = len(df) + 1
     # Compute edge probability by zone.
     df = df.with_columns((pl.col("weight") * pl.col("matched_length")).alias("tot_weight"))
+    # Use uniform probabilities if all weights are zero in a zone.
     df = df.with_columns(
-        (pl.col("tot_weight") / pl.col("tot_weight").sum().over("zone_id")).alias("prob")
+        pl.when(pl.col("tot_weight").sum().over("zone_id") > 0.0)
+        .then(pl.col("tot_weight"))
+        .otherwise(pl.lit(1.0))
+        .alias("prob")
     )
     matched_zones = set(df["zone_id"])
-    zone_edges = df.select("zone_id", "source", "target", "prob").partition_by(
-        ["zone_id"], as_dict=True
+    zone_edges = (
+        df.select("zone_id", "source", "target", "prob")
+        .filter(pl.col("prob") > 0.0)
+        .partition_by(["zone_id"], as_dict=True)
     )
     # Set `count` variable to integer.
     if od_matrix["count"].dtype.is_float():
@@ -123,7 +137,13 @@ def generate_origin_destination(df: pl.DataFrame, od_matrix: pl.DataFrame, rando
     origins = dict()
     for zone_id, count in zip(origin_counts["origin"], origin_counts["count"]):
         zone_df = zone_edges[(zone_id,)]
-        edges = rng.choice(len(zone_df), p=zone_df["prob"], size=count)
+        if len(zone_df) > m and count > m:
+            # Randomly select `m` candidate nodes to be selected.
+            idx = rng.choice(
+                len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=m, replace=False
+            )
+            zone_df = zone_df[idx]
+        edges = rng.choice(len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=count)
         # For first half, we use source, for the other half, we use target.
         n = count // 2
         origins[zone_id] = pl.concat((zone_df["source"][edges[:n]], zone_df["target"][edges[n:]]))
@@ -132,7 +152,13 @@ def generate_origin_destination(df: pl.DataFrame, od_matrix: pl.DataFrame, rando
     destinations = dict()
     for zone_id, count in zip(destination_counts["destination"], destination_counts["count"]):
         zone_df = zone_edges[(zone_id,)]
-        edges = rng.choice(len(zone_df), p=zone_df["prob"], size=count)
+        if len(zone_df) > m and count > m:
+            # Randomly select `m` candidate nodes to be selected.
+            idx = rng.choice(
+                len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=m, replace=False
+            )
+            zone_df = zone_df[idx]
+        edges = rng.choice(len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=count)
         # For first half, we use source, for the other half, we use target.
         n = count // 2
         destinations[zone_id] = pl.concat(
@@ -175,7 +201,8 @@ def save_population(trips: pl.DataFrame, nodes: pl.DataFrame):
         {"lng": "destination_lng", "lat": "destination_lat"}
     )
     trips = trips.with_columns(
-        pl.int_range(pl.len()).alias("trip_id"), pl.int_range(pl.len()).alias("person_id")
+        pl.int_range(pl.len()).alias("trip_id"),
+        pl.int_range(pl.len()).alias("person_id"),
     )
     # Create dummy persons and households.
     persons = trips.select("person_id", pl.col("person_id").alias("household_id"))
@@ -229,7 +256,7 @@ if __name__ == "__main__":
     zones = read_zones(config["od_matrix"]["zone_filename"], config["crs"])
     df = match_edges_with_zones(edges, zones)
     od_matrix = read_od_matrix(config["od_matrix"]["od_matrix_filename"])
-    df = generate_origin_destination(df, od_matrix, config.get("random_seed"))
+    df = generate_origin_destination(df, od_matrix, this_config, config.get("random_seed"))
     trips = save_population(df, nodes)
     save_trip_coordinates(trips, config["population_directory"])
     t = time.time() - t0
