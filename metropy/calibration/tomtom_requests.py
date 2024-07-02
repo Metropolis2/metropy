@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -9,7 +11,7 @@ from tqdm import tqdm
 import metropy.utils.io as metro_io
 
 BASE_URL = "https://api.tomtom.com/routing/1/calculateRoute/"
-PARAMS = {"computeTravelTimeFor": "all", "departAt": "2024-07-30T03:30:00", "traffic": False}
+PARAMS = {"computeTravelTimeFor": "all", "traffic": True}
 
 
 def read_edges(input_file: str):
@@ -38,9 +40,9 @@ def generate_random_nodes(edges: gpd.GeoDataFrame, random_seed, config: dict):
     return selected_nodes, coordinates
 
 
-async def get_tomtom_request(url, session):
+async def get_tomtom_request(url, session, params):
     try:
-        async with session.get(url, params=PARAMS) as response:
+        async with session.get(url, params=params) as response:
             if response.status == 200:
                 data = await response.json()
                 return data
@@ -54,7 +56,7 @@ async def get_tomtom_request(url, session):
         pass
 
 
-async def process_batch(api_key, nodes, coordinates, batch_id: int, batch_size: int):
+async def process_batch(api_key, nodes, coordinates, batch_id: int, batch_size: int, params: dict):
     batch_results = []
     start_index = batch_id * batch_size
     end_index = min((batch_id + 1) * batch_size, len(nodes))
@@ -65,20 +67,22 @@ async def process_batch(api_key, nodes, coordinates, batch_id: int, batch_size: 
             for node_ids, points in zip(nodes_batch, coordinates_batch):
                 waypoint_coords = ":".join([f"{lat},{lon}" for lat, lon in points])
                 url = f"{BASE_URL}{waypoint_coords}/json?key={api_key}"
-                data = await get_tomtom_request(url, session)
+                data = await get_tomtom_request(url, session, params)
                 if data and "routes" in data:
                     assert len(data["routes"]) == 1
                     route = data["routes"][0]
                     assert len(route["legs"]) == len(node_ids) - 1
                     for i, leg in enumerate(route["legs"]):
                         geom = LineString([[p["longitude"], p["latitude"]] for p in leg["points"]])
+                        departure_time = datetime.fromisoformat(leg["summary"]["departureTime"])
                         res = {
                             "source": node_ids[i],
                             "target": node_ids[i + 1],
                             "length": leg["summary"]["lengthInMeters"],
-                            "tt": leg["summary"]["noTrafficTravelTimeInSeconds"],
-                            #  "tt_traffic": leg["summary"]["travelTimeInSeconds"],
-                            #  "tt_historical": leg["summary"]["historicTrafficTravelTimeInSeconds"],
+                            "departure_time": departure_time,
+                            "tt_no_traffic": leg["summary"]["noTrafficTravelTimeInSeconds"],
+                            "tt_traffic": leg["summary"]["travelTimeInSeconds"],
+                            "tt_historical": leg["summary"]["historicTrafficTravelTimeInSeconds"],
                             "geometry": geom,
                         }
                         batch_results.append(res)
@@ -92,6 +96,8 @@ async def process_batch(api_key, nodes, coordinates, batch_id: int, batch_size: 
 async def get_tomtom_data(config, api_key, nodes, coordinates):
     print("Processing batches...")
     batch_size = int(np.ceil(config["nb_routes"] / config.get("nb_batches", 1)))
+    params = PARAMS
+    params["departAt"] = config["departure_time"]
     results = await asyncio.gather(
         *(
             process_batch(
@@ -100,6 +106,7 @@ async def get_tomtom_data(config, api_key, nodes, coordinates):
                 coordinates,
                 i,
                 batch_size,
+                params,
             )
             for i in range(config.get("nb_batches", 1))
         )
