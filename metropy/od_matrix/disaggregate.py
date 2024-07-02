@@ -201,8 +201,8 @@ def save_population(trips: pl.DataFrame, nodes: pl.DataFrame):
         {"lng": "destination_lng", "lat": "destination_lat"}
     )
     trips = trips.with_columns(
-        pl.int_range(pl.len()).alias("trip_id"),
-        pl.int_range(pl.len()).alias("person_id"),
+        pl.int_range(pl.len(), dtype=pl.UInt64).alias("trip_id"),
+        pl.int_range(pl.len(), dtype=pl.UInt64).alias("person_id"),
     )
     # Create dummy persons and households.
     persons = trips.select("person_id", pl.col("person_id").alias("household_id"))
@@ -258,6 +258,6 @@ if __name__ == "__main__":
     od_matrix = read_od_matrix(config["od_matrix"]["od_matrix_filename"])
     df = generate_origin_destination(df, od_matrix, this_config, config.get("random_seed"))
     trips = save_population(df, nodes)
-    save_trip_coordinates(trips, config["population_directory"])
+    save_trip_coordinates(trips, output_dir)
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
