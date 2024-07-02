@@ -27,10 +27,14 @@ def read_trips(input_directory: str):
         os.path.join(input_directory, "trips.parquet"),
         columns=columns,
     )
+    n0 = len(df)
     df = df.filter(
         (pl.col("origin_lng") != pl.col("destination_lng"))
         | (pl.col("origin_lat") != pl.col("destination_lat"))
     )
+    n1 = len(df)
+    if n0 > n1:
+        print("Warning: discarding {:,} trips with origin equal to destination".format(n0 - n1))
     # Create a DataFrame will all the unique (lng, lat) pairs.
     nodes = pl.concat(
         (
@@ -83,6 +87,38 @@ def read_edges(filename: str, crs: str, config: dict, edge_penalties_filename: s
             )
             gdf["travel_time"] += gdf["additive_penalty"].fillna(0.0)
     return gdf
+
+
+def process_edges(edges: pl.DataFrame):
+    print("Finding the largest strongly connected component of the main graph...")
+    G = nx.DiGraph()
+    G.add_edges_from(
+        map(
+            lambda v: (v[0], v[1]),
+            edges.filter(pl.col("main")).select("source", "target").to_numpy(),
+        )
+    )
+    # Find the nodes of the largest strongly connected component.
+    nodes = max(nx.strongly_connected_components(G), key=len)
+    if len(nodes) < G.number_of_nodes():
+        print(
+            """Warning: discarding {} nodes from the main graph as they are disconnected from the
+            largest component of the main graph""".format(
+                G.number_of_nodes() - len(nodes)
+            )
+        )
+        n0 = edges["main"].sum()
+        l0 = edges.filter(pl.col("main"))["length"].sum()
+        edges = edges.with_columns(
+            (pl.col("main") & pl.col("source").is_in(nodes) & pl.col("target").is_in(nodes)).alias(
+                "main"
+            )
+        )
+        n1 = edges["main"].sum()
+        l1 = edges.filter(pl.col("main"))["length"].sum()
+        print("Number of edges discarded: {} ({:.2%})".format(n0 - n1, (n0 - n1) / n0))
+        print("Edge length discarded (m): {:,.0f} ({:.2%})".format(l0 - l1, (l0 - l1) / l0))
+    return edges
 
 
 def find_origin_destination_node(nodes: pl.DataFrame, edges: gpd.GeoDataFrame):
@@ -303,7 +339,7 @@ def find_main_edges_inner(results: pl.DataFrame, main_edges: set, i=0):
     return main_edges
 
 
-def process_edges(edges: pl.DataFrame, main_edges: set):
+def get_main_edges(edges: pl.DataFrame, main_edges: set):
     # Flag main edges (used in Metropolis).
     edges = edges.with_columns(pl.col("edge_id").is_in(main_edges).alias("main"))
     print("Finding the largest strongly connected component of the main graph...")
@@ -314,31 +350,11 @@ def process_edges(edges: pl.DataFrame, main_edges: set):
             edges.filter(pl.col("main")).select("source", "target").to_numpy(),
         )
     )
-    # Find the nodes of the largest strongly connected component.
-    nodes = max(nx.strongly_connected_components(G), key=len)
-    if len(nodes) < G.number_of_nodes():
-        print(
-            """Warning: discarding {} nodes from the main graph as they are disconnected from the
-            largest component of the main graph""".format(
-                G.number_of_nodes() - len(nodes)
-            )
-        )
-        n0 = edges["main"].sum()
-        l0 = edges.filter(pl.col("main"))["length"].sum()
-        edges = edges.with_columns(
-            (pl.col("main") & pl.col("source").is_in(nodes) & pl.col("target").is_in(nodes)).alias(
-                "main"
-            )
-        )
-        n1 = edges["main"].sum()
-        l1 = edges.filter(pl.col("main"))["length"].sum()
-        print("Number of edges discarded: {} ({:.2%})".format(n0 - n1, (n0 - n1) / n0))
-        print("Edge length discarded (m): {:,.0f} ({:.2%})".format(l0 - l1, (l0 - l1) / l0))
-    return edges
+    assert nx.is_strongly_connected(G)
+    return edges.select("edge_id", "main")
 
 
-def find_connections(results: pl.DataFrame, edges: pl.DataFrame):
-    main_edges = set(edges.filter(pl.col("main"))["edge_id"])
+def find_connections(results: pl.DataFrame, edges: pl.DataFrame, main_edges: set[int]):
     print("Finding access / egress part...")
     lazy_results = (
         results.lazy()
@@ -577,6 +593,8 @@ if __name__ == "__main__":
         "routing_exec",
         "tmp_directory",
         "routing.car_split.main_road_types",
+        "routing.car_split.trips_filename",
+        "routing.car_split.main_edges_filename",
     ]
     check_keys(config, mandatory_keys)
 
@@ -598,25 +616,32 @@ if __name__ == "__main__":
 
     trips = add_od_to_trips(trips, df)
 
+    edges_df = edges_to_polars(edges)
+
+    edges_df = process_edges(edges_df)
+
     prepare_routing(trips, edges, config["tmp_directory"])
 
     run_routing(config["routing_exec"], config["tmp_directory"])
 
     results = load_results(config["tmp_directory"])
 
-    edges_df = edges_to_polars(edges)
-
     main_edges = find_main_edges(results, edges_df)
 
-    results = find_connections(results, edges_df)
+    results = find_connections(results, edges_df, main_edges)
 
-    edges_df = process_edges(edges_df, main_edges)
+    main_edges_df = get_main_edges(edges_df, main_edges)
 
     df = merge(trips, results)
 
     metro_io.save_dataframe(
         df,
-        config["routing"]["car_split"]["output_filename"],
+        config["routing"]["car_split"]["trips_filename"],
+    )
+
+    metro_io.save_dataframe(
+        main_edges_df,
+        config["routing"]["car_split"]["main_edges_filename"],
     )
 
     if config["routing"]["car_split"].get("output_graphs", False):
