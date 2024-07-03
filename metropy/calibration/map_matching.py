@@ -16,7 +16,8 @@ def get_graph(filename: str, crs: str, tmp_dir: str):
     """
     print("Reading edges")
     gdf = metro_io.read_geodataframe(filename, columns=["edge_id", "source", "target", "geometry"])
-    gdf.set_index("edge_id", inplace=True, drop=True)
+    gdf.rename(columns={"edge_id": "id"}, inplace=True)
+    gdf.set_index("id", inplace=True, drop=True)
     gdf.sort_index(inplace=True)
     gdf.to_crs(crs, inplace=True)
     gdf = gdf[["source", "target", "geometry"]].copy()
