@@ -33,16 +33,7 @@ def generate_road_network(edges, config):
     if "capacity" in edges.columns:
         edges = edges.with_columns((pl.col("capacity") / 3600.0).alias("bottleneck_flow"))
         columns.append("bottleneck_flow")
-    tt_penalties = config.get("travel_time_penalties")
-    if isinstance(tt_penalties, dict) and "target_count" in edges.columns:
-        ddict = defaultdict(
-            lambda: tt_penalties.get("default", 0.0),
-            {int(k): v for k, v in tt_penalties.items() if k != "default"},
-        )
-        edges = edges.with_columns(
-            pl.col("target_count").replace(ddict).alias("constant_travel_time")
-        )
-        columns.append("constant_travel_time")
+    # TODO: Add penalties
     edges = edges.select(columns)
     return edges
 

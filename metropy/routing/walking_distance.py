@@ -43,15 +43,14 @@ def read_trips(input_directory: str):
     return df, nodes
 
 
-def read_edges(filename: str, crs: str, config: dict):
+def read_edges(filename: str, crs: str, forbidden_road_types: list | None):
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
         filename, columns=["edge_id", "source", "target", "length", "road_type", "geometry"]
     )
     gdf.to_crs(crs, inplace=True)
-    if "forbidden_road_types" in config:
-        assert isinstance(config["forbidden_road_types"], list)
-        gdf["allow_od"] = ~gdf["road_type"].isin(config["forbidden_road_types"])
+    if forbidden_road_types is not None:
+        gdf["allow_od"] = ~gdf["road_type"].isin(forbidden_road_types)
     else:
         gdf["allow_od"] = True
     return gdf
@@ -88,7 +87,17 @@ def find_origin_destination_node(nodes: pl.DataFrame, edges: gpd.GeoDataFrame):
     # Set the nearest node.
     df = pl.from_pandas(
         gdf.loc[
-            :, ["lng", "lat", "edge_id", "edge_dist", "source", "target", "source_dist", "target_dist"]
+            :,
+            [
+                "lng",
+                "lat",
+                "edge_id",
+                "edge_dist",
+                "source",
+                "target",
+                "source_dist",
+                "target_dist",
+            ],
         ]
     )
     mask = df["source_dist"] > df["target_dist"]
@@ -234,10 +243,7 @@ def plot_variables(df: pl.DataFrame, trips: pl.DataFrame, graph_dir: str):
     # Distance between origin / destination point and nearest edge.
     fig, ax = mpl.get_figure(fraction=0.8)
     m = max(0.0, np.log(df.select("edge_dist").min().item()))
-    bins = (
-        np.logspace(m, np.log1p(df.select("edge_dist").max().item()), 50, base=np.e)
-        - 1.0
-    )
+    bins = np.logspace(m, np.log1p(df.select("edge_dist").max().item()), 50, base=np.e) - 1.0
     ax.hist(df["edge_dist"], bins=bins, color=mpl.CMP(0))
     ax.set_xlabel("Distance to nearest edge (meters)")
     ax.set_xscale("log")
@@ -247,12 +253,7 @@ def plot_variables(df: pl.DataFrame, trips: pl.DataFrame, graph_dir: str):
     # Distance between origin / destination and start / end node.
     fig, ax = mpl.get_figure(fraction=0.8)
     m = max(0.0, np.log(df.select("node_dist").min().item()))
-    bins = (
-        np.logspace(
-            m, np.log1p(df.select("node_dist").max().item()), 50, base=np.e
-        )
-        - 1.0
-    )
+    bins = np.logspace(m, np.log1p(df.select("node_dist").max().item()), 50, base=np.e) - 1.0
     ax.hist(df["node_dist"], bins=bins, color=mpl.CMP(0))
     ax.set_xlabel("Distance to start / end node (meters)")
     ax.set_xscale("log")
@@ -263,8 +264,7 @@ def plot_variables(df: pl.DataFrame, trips: pl.DataFrame, graph_dir: str):
     fig, ax = mpl.get_figure(fraction=0.8)
     m = max(0.0, np.log(trips.select("distance_network").min().item()))
     bins = (
-        np.logspace(m, np.log1p(trips.select("distance_network").max().item()), 50, base=np.e)
-        - 1.0
+        np.logspace(m, np.log1p(trips.select("distance_network").max().item()), 50, base=np.e) - 1.0
     )
     ax.hist(
         trips.filter(pl.col("distance_network") > 0)["distance_network"],
@@ -299,7 +299,7 @@ if __name__ == "__main__":
         "crs",
         "routing_exec",
         "tmp_directory",
-        "routing.walking_distance",
+        "routing.walking_distance.output_filename",
     ]
     check_keys(config, mandatory_keys)
 
@@ -311,7 +311,7 @@ if __name__ == "__main__":
     trips, nodes = read_trips(config["population_directory"])
 
     edges = read_edges(
-        config["clean_walk_edges_file"], config["crs"], config["routing"]["walking_distance"]
+        config["clean_walk_edges_file"], config["crs"], config.get("forbidden_road_types")
     )
 
     df = find_origin_destination_node(nodes, edges)

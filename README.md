@@ -54,6 +54,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Compute public-transit chevelus: `metropy.public_transit.chevelus`
 - Compute pollutant emissions and fuel consumption with the EMISENS model:
   `metropy.emissions.emisens`
+- Compare METROPOLIS2 free-flow travel times with travel survey data:
+  `metropy.travel_survey.free_flow_travel_time`
 
 # Acknowledgments
 

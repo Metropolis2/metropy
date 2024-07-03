@@ -49,19 +49,24 @@ def read_trips(input_directory: str):
     return df, nodes
 
 
-def read_edges(filename: str, crs: str, config: dict, edge_penalties_filename: str | None):
+def read_edges(
+    filename: str,
+    crs: str,
+    forbidden_road_types: list | None,
+    edge_penalties_filename: str | None,
+    main_road_types: list,
+):
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
         filename,
         columns=["edge_id", "source", "target", "length", "speed", "road_type", "geometry"],
     )
     gdf.to_crs(crs, inplace=True)
-    if "forbidden_road_types" in config:
-        assert isinstance(config["forbidden_road_types"], list)
-        gdf["allow_od"] = ~gdf["road_type"].isin(config["forbidden_road_types"])
+    if forbidden_road_types is not None:
+        gdf["allow_od"] = ~gdf["road_type"].isin(forbidden_road_types)
     else:
         gdf["allow_od"] = True
-    gdf["main"] = gdf["road_type"].isin(config["main_road_types"])
+    gdf["main"] = gdf["road_type"].isin(main_road_types)
     if edge_penalties_filename is not None:
         penalties = metro_io.read_dataframe(edge_penalties_filename)
         if "speed" in penalties.columns:
@@ -608,8 +613,9 @@ if __name__ == "__main__":
     edges = read_edges(
         config["clean_edges_file"],
         config["crs"],
-        config["routing"]["car_split"],
+        config.get("forbidden_road_types"),
         config.get("edge_penalties_file"),
+        config["routing"]["car_split"]["main_road_types"],
     )
 
     df = find_origin_destination_node(nodes, edges)
