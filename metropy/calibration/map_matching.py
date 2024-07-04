@@ -54,7 +54,7 @@ def run_fmm(graph_filename: str, gps_filename: str, config: dict):
     input_config.geom = "geometry"
 
     result_config = ResultConfig()
-    result_config.file = config["output_file"]
+    result_config.file = config["output_filename"]
     result_config.output_config.write_offset = False
     result_config.output_config.write_error = False
     result_config.output_config.write_opath = False
@@ -78,11 +78,11 @@ if __name__ == "__main__":
         "clean_edges_file",
         "crs",
         "tmp_directory",
-        "calibration.map_matching.output_file",
+        "calibration.map_matching.output_filename",
         "calibration.map_matching.nb_candidates",
         "calibration.map_matching.gps_error",
         "calibration.map_matching.radius",
-        "calibration.tomtom.output_file",
+        "calibration.tomtom.output_filename",
     ]
     check_keys(config, mandatory_keys)
 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     graph_filename = get_graph(config["clean_edges_file"], config["crs"], config["tmp_directory"])
     gps_filename = get_trajectories(
-        config["calibration"]["tomtom"]["output_file"], config["crs"], config["tmp_directory"]
+        config["calibration"]["tomtom"]["output_filename"], config["crs"], config["tmp_directory"]
     )
     try:
         run_fmm(graph_filename, gps_filename, config["calibration"]["map_matching"])

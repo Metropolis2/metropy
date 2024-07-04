@@ -182,22 +182,22 @@ if __name__ == "__main__":
     mandatory_keys = [
         "crs",
         "clean_edges_file",
-        "calibration.tomtom.output_file",
-        "calibration.map_matching.output_file",
-        "calibration.post_map_matching.output_file",
+        "calibration.tomtom.output_filename",
+        "calibration.map_matching.output_filename",
+        "calibration.post_map_matching.output_filename",
     ]
     check_keys(config, mandatory_keys)
 
     t0 = time.time()
 
     edges = read_edges(config["clean_edges_file"], config["crs"])
-    tomtom = read_tomtom(config["calibration"]["tomtom"]["output_file"], config["crs"])
-    matches = read_matches(config["calibration"]["map_matching"]["output_file"])
+    tomtom = read_tomtom(config["calibration"]["tomtom"]["output_filename"], config["crs"])
+    matches = read_matches(config["calibration"]["map_matching"]["output_filename"])
     matches = clean_od(edges, tomtom, matches)
     matches = clean_paths(edges, matches)
     matches = clean_length(edges, tomtom, matches)
     matches = clean_covered(edges, tomtom, matches)
-    save(matches, config["calibration"]["post_map_matching"]["output_file"])
+    save(matches, config["calibration"]["post_map_matching"]["output_filename"])
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))

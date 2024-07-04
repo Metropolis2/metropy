@@ -5,22 +5,22 @@ import geopandas as gpd
 from fiona.errors import DriverError
 
 
-def scan_dataframe(filename: str):
+def scan_dataframe(filename: str, **kwargs):
     """Scan a DataFrame from a Parquet or CSV file."""
     if not os.path.isfile(filename):
         raise Exception(f"File not found: `{filename}`")
     if filename.endswith(".parquet"):
-        lf = pl.scan_parquet(filename)
+        lf = pl.scan_parquet(filename, **kwargs)
     elif filename.endswith(".csv"):
-        lf = pl.scan_csv(filename)
+        lf = pl.scan_csv(filename, **kwargs)
     else:
         raise Exception(f"Unsupported format for input file: `{filename}`")
     return lf
 
 
-def read_dataframe(filename: str, columns=None):
+def read_dataframe(filename: str, columns=None, **kwargs):
     """Reads a DataFrame from a Parquet or CSV file."""
-    lf = scan_dataframe(filename)
+    lf = scan_dataframe(filename, **kwargs)
     if columns is not None:
         lf = lf.select(columns)
     return lf.collect()
@@ -34,7 +34,7 @@ def read_geodataframe(filename: str, columns=None):
         gdf = gpd.read_parquet(filename, columns=columns)
     else:
         try:
-            gdf = gpd.read_file(filename, columns=columns)
+            gdf = gpd.read_file(filename, columns=columns, engine="pyogrio")
         except DriverError:
             raise Exception(f"Unsupported format for input file: `{filename}`")
     return gdf

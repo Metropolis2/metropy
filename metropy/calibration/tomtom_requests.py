@@ -122,7 +122,7 @@ if __name__ == "__main__":
     config = read_config()
     mandatory_keys = [
         "clean_edges_file",
-        "calibration.tomtom.output_file",
+        "calibration.tomtom.output_filename",
         "calibration.tomtom.nb_routes",
         "calibration.tomtom.nb_waypoints",
     ]
@@ -139,4 +139,4 @@ if __name__ == "__main__":
 
     gdf = asyncio.run(get_tomtom_data(tomtom_config, secrets["tomtom_key"], nodes, coordinates))
 
-    metro_io.save_geodataframe(gdf, tomtom_config["output_file"])
+    metro_io.save_geodataframe(gdf, tomtom_config["output_filename"])

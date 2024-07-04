@@ -168,7 +168,7 @@ if __name__ == "__main__":
     mandatory_keys = [
         "population_directory",
         "crs",
-        "synthetic_population.french_vehicle_fleet.insee_filename",
+        "france.insee_filename",
         "synthetic_population.french_vehicle_fleet.fleet_filename",
         "synthetic_population.french_vehicle_fleet.fleet_year",
         "synthetic_population.french_vehicle_fleet.output_filename",
@@ -181,7 +181,7 @@ if __name__ == "__main__":
 
     households = read_households(config["population_directory"])
 
-    municipalities = read_municipalities(this_config["insee_filename"])
+    municipalities = read_municipalities(config["france"]["insee_filename"])
 
     df = match_home_to_municipalities(households, municipalities, config["crs"])
 
