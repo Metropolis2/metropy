@@ -172,7 +172,8 @@ def save(tomtom: gpd.GeoDataFrame, matches: pl.DataFrame, output_file: str):
     print("Saving file...")
     matches = matches.join(
         pl.from_pandas(
-            tomtom.loc[:, ["id", "departure_time", "tt_no_traffic", "tt_traffic", "tt_historic"]]
+            tomtom.loc[:, ["departure_time", "tt_no_traffic", "tt_traffic", "tt_historical"]],
+            include_index=True,
         ),
         on="id",
     )
@@ -184,7 +185,7 @@ def save(tomtom: gpd.GeoDataFrame, matches: pl.DataFrame, output_file: str):
         "departure_time",
         "tt_no_traffic",
         "tt_traffic",
-        "tt_historic",
+        "tt_historical",
     )
     matches.write_parquet(output_file)
 
