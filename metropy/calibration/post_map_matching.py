@@ -157,7 +157,7 @@ def clean_covered(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl
     print("Computing distances...")
     covered = list()
     for i, (query_id, cpath) in enumerate(zip(matches["id"], matches["cpath"])):
-        if (i & (i-1) == 0) and i > 8:
+        if (i & (i - 1) == 0) and i > 8:
             print(f"{i} / {len(matches)}")
         points = [source_points_dict[e] for e in cpath]
         tomtom_path = tomtom.loc[query_id, "geometry"]
@@ -170,8 +170,22 @@ def clean_covered(edges: gpd.GeoDataFrame, tomtom: gpd.GeoDataFrame, matches: pl
 
 def save(tomtom: gpd.GeoDataFrame, matches: pl.DataFrame, output_file: str):
     print("Saving file...")
-    matches = matches.join(pl.from_pandas(tomtom.loc[:, ["id", "tt"]]), on="id")
-    matches.select("id", "cpath", "length", "length_tomtom", "tt")
+    matches = matches.join(
+        pl.from_pandas(
+            tomtom.loc[:, ["id", "departure_time", "tt_no_traffic", "tt_traffic", "tt_historic"]]
+        ),
+        on="id",
+    )
+    matches.select(
+        "id",
+        "cpath",
+        "length",
+        "length_tomtom",
+        "departure_time",
+        "tt_no_traffic",
+        "tt_traffic",
+        "tt_historic",
+    )
     matches.write_parquet(output_file)
 
 
@@ -197,7 +211,7 @@ if __name__ == "__main__":
     matches = clean_paths(edges, matches)
     matches = clean_length(edges, tomtom, matches)
     matches = clean_covered(edges, tomtom, matches)
-    save(matches, config["calibration"]["post_map_matching"]["output_filename"])
+    save(tomtom, matches, config["calibration"]["post_map_matching"]["output_filename"])
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
