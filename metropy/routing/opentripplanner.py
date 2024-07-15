@@ -274,7 +274,6 @@ if __name__ == "__main__":
     config = read_config()
     mandatory_keys = [
         "population_directory",
-        "crs",
         "tmp_directory",
         "routing.opentripplanner.url",
         "routing.opentripplanner.output_filename",

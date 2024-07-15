@@ -181,7 +181,7 @@ def generate_origin_destination(
         trips.extend(od_trips)
     print(f"{len(trips):,} trips generated")
     trip_df = pl.DataFrame(
-        trips, schema=[("origin_node", pl.UInt64), ("destination_node", pl.UInt64)]
+        trips, schema=[("origin_node", pl.UInt64), ("destination_node", pl.UInt64)], orient="row"
     )
     trip_df = trip_df.with_columns(
         pl.Series(np.repeat(od_matrix["origin"], od_matrix["count"])).alias("origin_zone")
