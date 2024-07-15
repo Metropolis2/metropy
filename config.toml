@@ -14,6 +14,9 @@ routing_exec = "./execs/routing_cli"
 # Directory to be used to temporarily store files.
 tmp_directory = "./tmp/"
 
+# Directory where the run input / output are stored.
+run_directory = "./run/"
+
 # Path to the file where the imported edges of the road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
 raw_edges_file = "./output/road_network/edges_raw.parquet"
@@ -413,6 +416,8 @@ gtfs_zipfile = "./data/IDFM-gtfs.zip"
 # Path to the output file with the public-transit flows
 # (possible extensions: parquet, geojson, fgb, shp).
 output_filename = "./output/public_transit/global_flows.parquet"
+# If `true`, the public-transit flows are computed for all flows, not only the agents who took public transit.
+all_flows = false
 
 [public_transit.chevelus]
 # Path to the GTFS zipfile.
@@ -461,6 +466,13 @@ trips_filename = "./output/routing/car_split_merged.parquet"
 main_edges_filename = "./output/road_network/edges_main.parquet"
 # Whether graphs of the variables should be saved.
 output_graphs = true
+
+[road_results.chevelus]
+# Id of the route to be selected.
+edge_id = 1
+# Path to the output file with the chevelus
+# (possible extensions: parquet, geojson, fgb, shp).
+output_filename = "./output/road_results/chevelus.parquet"
 
 [emisens]
 # Path to the CSV file with emission factors.

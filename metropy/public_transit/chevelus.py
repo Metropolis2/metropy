@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from zipfile import ZipFile
 from itertools import pairwise
@@ -14,7 +15,7 @@ import metropy.utils.io as metro_io
 
 def read_pt_itineraries(filename: str, route_id: str):
     print("Reading public-transit itineraries...")
-    df = metro_io.read_dataframe(filename)
+    df = metro_io.scan_dataframe(filename)
     # Remove the 2 first characters of the route_id and stop_id, as they are added by OTP.
     df = df.with_columns(
         pl.col("legs").list.eval(
@@ -38,6 +39,19 @@ def read_pt_itineraries(filename: str, route_id: str):
             - pl.col("legs").list.eval(pl.element().struct.field("travel_time")).list.sum()
         ).alias("waiting_time"),
     )
+    return df
+
+
+def filter_pt_trips(df: pl.LazyFrame, run_directory: str, pt_alt_id: int):
+    agent_results = metro_io.scan_dataframe(
+        os.path.join(run_directory, "output", "agent_results.parquet")
+    )
+    trip_results = metro_io.scan_dataframe(
+        os.path.join(run_directory, "output", "trip_results.parquet")
+    )
+    pt_agents = agent_results.filter(pl.col("selected_alt_id") == pt_alt_id)
+    pt_trips = trip_results.join(pt_agents, on="agent_id", how="semi")
+    df = df.join(pt_trips, on="trip_id", how="semi")
     return df
 
 
@@ -150,43 +164,44 @@ def get_connections(df: pl.DataFrame, gtfs_zipfile: str):
 
 
 def filter_out(df: pl.DataFrame, connections: pl.DataFrame, config: dict):
-    print("Filtering valid trips...")
-    pairs = (
-        df.lazy()
-        .explode("legs")
-        .filter(pl.col("legs").struct.field("route_id").eq(config["route_id"]))
-        .select(
-            "trip_id",
-            pl.col("legs").struct.field("from_stop_id"),
-            pl.col("legs").struct.field("to_stop_id"),
+    if "from_stop_id" in config and "to_stop_id" in config:
+        print("Filtering valid trips...")
+        pairs = (
+            df.lazy()
+            .explode("legs")
+            .filter(pl.col("legs").struct.field("route_id").eq(config["route_id"]))
+            .select(
+                "trip_id",
+                pl.col("legs").struct.field("from_stop_id"),
+                pl.col("legs").struct.field("to_stop_id"),
+            )
+            .collect()
         )
-        .collect()
-    )
-    unique_pairs = pairs.unique(subset=["from_stop_id", "to_stop_id"])
-    route_connects = connections.filter(pl.col("route_id") == config["route_id"]).select(
-        pl.struct("from", "to").alias("pair")
-    )
-    graph = get_route_graph(route_connects["pair"])
-    paths = dict(nx.all_pairs_dijkstra_path(graph))
-    to_select = list()
-    for from_id, to_id in zip(unique_pairs["from_stop_id"], unique_pairs["to_stop_id"]):
-        path = paths[from_id][to_id]
-        try:
-            i = path.index(config["from_stop_id"])
-            if config["to_stop_id"] in path[i + 1 :]:
-                to_select.append(True)
-            else:
+        unique_pairs = pairs.unique(subset=["from_stop_id", "to_stop_id"])
+        route_connects = connections.filter(pl.col("route_id") == config["route_id"]).select(
+            pl.struct("from", "to").alias("pair")
+        )
+        graph = get_route_graph(route_connects["pair"])
+        paths = dict(nx.all_pairs_dijkstra_path(graph))
+        to_select = list()
+        for from_id, to_id in zip(unique_pairs["from_stop_id"], unique_pairs["to_stop_id"]):
+            path = paths[from_id][to_id]
+            try:
+                i = path.index(config["from_stop_id"])
+                if config["to_stop_id"] in path[i + 1 :]:
+                    to_select.append(True)
+                else:
+                    to_select.append(False)
+            except ValueError:
                 to_select.append(False)
-        except ValueError:
-            to_select.append(False)
-    valid_pairs = unique_pairs.filter(pl.Series(to_select))
-    trip_ids = (
-        pairs.join(valid_pairs, on=["from_stop_id", "to_stop_id"], how="semi")
-        .select("trip_id")
-        .to_series()
-    )
-    print("Number of valid trips: {:,}".format(len(trip_ids)))
-    df = df.filter(pl.col("trip_id").is_in(trip_ids))
+        valid_pairs = unique_pairs.filter(pl.Series(to_select))
+        trip_ids = (
+            pairs.join(valid_pairs, on=["from_stop_id", "to_stop_id"], how="semi")
+            .select("trip_id")
+            .to_series()
+        )
+        df = df.filter(pl.col("trip_id").is_in(trip_ids))
+    print("Number of valid trips: {:,}".format(len(df)))
     return df
 
 
@@ -250,9 +265,7 @@ def to_geopandas(connections):
         .to_struct("coords")
         .map_elements(get_linestring, return_dtype=pl.Object)
     )
-    gdf = gpd.GeoDataFrame(
-        connections.to_pandas(), geometry=linestrings.to_numpy(), crs="EPSG:4326"
-    )
+    gdf = gpd.GeoDataFrame(connections.to_pandas(), geometry=linestrings.to_list(), crs="EPSG:4326")
     return gdf
 
 
@@ -321,10 +334,7 @@ if __name__ == "__main__":
         "routing.opentripplanner.output_filename",
         "public_transit.chevelus.gtfs_zipfile",
         "public_transit.chevelus.route_id",
-        "public_transit.chevelus.from_stop_id",
-        "public_transit.chevelus.to_stop_id",
         "public_transit.chevelus.output_filename",
-        "graph_directory",
     ]
     check_keys(config, mandatory_keys)
 
@@ -332,6 +342,10 @@ if __name__ == "__main__":
         config["routing"]["opentripplanner"]["output_filename"],
         config["public_transit"]["chevelus"]["route_id"],
     )
+    if not config["public_transit"]["chevelus"].get("all_flows", False):
+        assert "run_directory" in config, "Missing key `run_directory` in config"
+        df = filter_pt_trips(df, config["run_directory"], 2)
+    df = df.collect()
     connections = get_connections(df, config["public_transit"]["chevelus"]["gtfs_zipfile"])
     df = filter_out(df, connections, config["public_transit"]["chevelus"])
     flows = get_flows(df, connections)

@@ -15,7 +15,7 @@ import metropy.utils.io as metro_io
 
 def read_pt_itineraries(filename: str):
     print("Reading public-transit itineraries...")
-    df = metro_io.read_dataframe(filename)
+    df = metro_io.scan_dataframe(filename)
     # Remove the 2 first characters of the route_id and stop_id, as they are added by OTP.
     df = df.with_columns(
         pl.col("legs").list.eval(
@@ -36,6 +36,17 @@ def read_pt_itineraries(filename: str):
             - pl.col("legs").list.eval(pl.element().struct.field("travel_time")).list.sum()
         ).alias("waiting_time"),
     )
+    return df
+
+
+def filter_pt_trips(df: pl.LazyFrame, run_directory: str, pt_alt_id: int):
+    agent_results = metro_io.scan_dataframe(os.path.join(run_directory, "output",
+                                                         "agent_results.parquet"))
+    trip_results = metro_io.scan_dataframe(os.path.join(run_directory, "output",
+                                                        "trip_results.parquet"))
+    pt_agents = agent_results.filter(pl.col("selected_alt_id") == pt_alt_id)
+    pt_trips = trip_results.join(pt_agents, on="agent_id", how="semi")
+    df = df.join(pt_trips, on="trip_id", how="semi")
     return df
 
 
@@ -489,8 +500,8 @@ def to_geopandas(connections):
         .map_elements(get_linestring, return_dtype=pl.Object)
     )
     gdf = gpd.GeoDataFrame(
-        connections.to_pandas(), geometry=linestrings.to_numpy(), crs="EPSG:4326"
-    )
+        data=connections.to_pandas()
+    ).set_geometry(linestrings.to_list(), crs="EPSG:4326")
     return gdf
 
 
@@ -566,6 +577,10 @@ if __name__ == "__main__":
     graph_dir = os.path.join(config["graph_directory"], "public_transit")
 
     df = read_pt_itineraries(config["routing"]["opentripplanner"]["output_filename"])
+    if not config["public_transit"]["analyze_flows"].get("all_flows", False):
+        assert "run_directory" in config, "Missing key `run_directory` in config"
+        df = filter_pt_trips(df, config["run_directory"], 2)
+    df = df.collect()
     print_stats_and_plot_graphs(
         df, config["public_transit"]["analyze_flows"]["gtfs_zipfile"], graph_dir
     )
