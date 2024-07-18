@@ -38,23 +38,60 @@ clean_walk_edges_file = "./output/road_network/edges_walk_clean.parquet"
 # Path to the directory where the population files are stored.
 population_directory = "./output/synthetic_population/"
 
-[metropolis]
-# Directory where the run input files are stored.
-input_directory = "./run/"
-# Directory where the run output files are stored.
-output_directory = "./run/output/"
+[run]
+# Directory where the run files are stored.
+directory = "./run/main/"
 # Format to use for the input and output files ("CSV" or "Parquet").
 format = "Parquet"
+# Ratio of population that is simulated.
+simulation_ratio = 0.2
+# Simulation period.
+period = [0.0, 30.0 * 3600.0]
+# Time interval between two breakpoints in the travel-time functions (in seconds).
+recording_interval = 900.0
+# Value of the smoothing factor for the learning model (weight of the simulated travel times).
+smoothing_factor = 0.02
+# Whether spillback is enabled.
+spillback = true
+# Maximum amount of time (in seconds) a vehicle can be pending to enter the next edge.
+max_pending_duration = 30.0
+# Routing algorithm to use in METROPOLIS (Intersect or TCH).
+routing_algorithm = "Intersect"
+# Headway of car vehicles.
+car_headway = 8.0
+# PCE of car vehicles.
+car_pce = 1.0
+# Whether vehicles are allowed to overtake vehicles pending to take a different outgoing edge.
+overtaking = true
+# Whether bottleneck congestion should be enabled (capacities must be specified).
+bottleneck = true
 
-# Constant time penalty, in seconds, added to the edges' travel times.
-# For now, it is limited to the function of the `target_count` of edges (i.e., the number of
-# incoming edges for the edge's target node).
-# The `default` value is used if there is no specified value for a given edge's `target_count`.
-[metropolis.travel_time_penalties]
-1 = 0.0
-2 = 3.0
-3 = 4.0
-default = 5.0
+[run.edge_capacity]
+# Bottleneck capacity per roadtype, in PCE/h.
+motorway = 2000
+trunk = 2000
+primary = 1500
+secondary = 800
+tertiary = 600
+motorway_link = 1500
+trunk_link = 1500
+primary_link = 1500
+secondary_link = 800
+tertiary_link = 600
+living_street = 300
+unclassified = 600
+residential = 600
+#road = 300
+#service = 300
+
+
+[run.car_only]
+# Directory where the files for the car-only run are stored.
+directory = "./run/car_only/"
+# Value of the smoothing factor for the learning model (weight of the simulated travel times).
+smoothing_factor = 0.02
+# Number of iterations to run.
+nb_iterations = 100
 
 [osm]
 # Path to the .osm.pbf file to use as input.
@@ -178,24 +215,6 @@ unclassified = 1
 residential = 1
 #road = 1
 #service = 1
-
-# Default bottleneck capacity per roadtype, in PCE/h.
-[postprocess_network.default_capacity]
-motorway = 2000
-trunk = 2000
-primary = 1500
-secondary = 800
-tertiary = 600
-motorway_link = 1500
-trunk_link = 1500
-primary_link = 1500
-secondary_link = 800
-tertiary_link = 600
-living_street = 300
-unclassified = 600
-residential = 600
-#road = 300
-#service = 300
 
 [osm_walk]
 # Path to the .osm.pbf file to use as input.
