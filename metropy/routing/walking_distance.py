@@ -20,6 +20,7 @@ def read_trips(input_directory: str):
         "origin_lat",
         "destination_lng",
         "destination_lat",
+        "od_distance",
     ]
     df = pl.read_parquet(
         os.path.join(input_directory, "trips.parquet"),
@@ -160,6 +161,7 @@ def add_od_to_trips(trips: pl.DataFrame, df: pl.DataFrame):
             "destination_node",
             "destination_node_dist",
             "destination_edge_dist",
+            "od_distance",
         )
         .collect()
     )
@@ -286,6 +288,22 @@ def plot_variables(df: pl.DataFrame, trips: pl.DataFrame, graph_dir: str):
     ax.set_ylabel("Count")
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "walking_distance_distribution.pdf"))
+    # Walking distance vs OD distance.
+    fig, ax = mpl.get_figure(fraction=0.8)
+    ax.scatter(
+        trips["od_distance"],
+        trips["distance"] / 1000,
+        marker=".",
+        s=1,
+        color=mpl.CMP(1),
+        alpha=0.01,
+    )
+    ax.set_xlabel("OD Euclidean distance (km)")
+    ax.set_ylabel("Walking distance (km)")
+    ax.set_xlim(0, 50)
+    ax.set_ylim(0, 50)
+    fig.tight_layout()
+    fig.savefig(os.path.join(graph_dir, "walking_distance_vs_euclidean_distance.png"), dpi=300)
 
 
 if __name__ == "__main__":
@@ -327,7 +345,7 @@ if __name__ == "__main__":
     trips = merge(trips, queries, results)
 
     metro_io.save_dataframe(
-        trips,
+        trips.drop("od_distance"),
         config["routing"]["walking_distance"]["output_filename"],
     )
 
