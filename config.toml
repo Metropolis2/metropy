@@ -46,7 +46,7 @@ format = "Parquet"
 # Ratio of population that is simulated.
 simulation_ratio = 0.2
 # Simulation period.
-period = [0.0, 30.0 * 3600.0]
+period = [0.0, 108_000]
 # Time interval between two breakpoints in the travel-time functions (in seconds).
 recording_interval = 900.0
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
@@ -303,6 +303,9 @@ gaz_et_inconnu.critair_1 = "PC_electric"
 gaz_et_inconnu.critair_2 = "PC_electric"
 gaz_et_inconnu.critair_3 = "PC_electric"
 gaz_et_inconnu.non_classe = "PC_electric"
+
+[synthetic_population.predict_modes]
+output_graphs = true
 
 [synthetic_population.plot]
 household_id = 19

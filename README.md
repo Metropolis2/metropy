@@ -45,6 +45,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Generating vehicles for the population from French vehicle fleet data:
   `metropy.synthetic_population.french_vehicle_fleet`
 - Identifying the origin / destination zone of trips: `metropy.synthetic_population.french_zones`
+- Predict mode choice for the synthetic population: `metropy.synthetic_population.predict_modes`
 - Plotting a household from the synthetic population: `metropy.synthetic_population.plot_household`
 - Generating a population from an origin-destination matrix: `metropy.od_matrix.disaggregate`
 - Splitting road network in main and secondary parts: `metropy.routing.car_split`

@@ -22,7 +22,7 @@ PARAMETERS = {
 }
 plt.rcParams.update(PARAMETERS)
 
-def set_size(width=470, ratio="golden", fraction=1.0):
+def set_size(width=470, ratio: str | float="golden", fraction=1.0):
     """Set figure dimensions to avoid scaling in LaTeX.
 
     Parameters
