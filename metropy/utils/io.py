@@ -2,7 +2,7 @@ import os
 
 import polars as pl
 import geopandas as gpd
-from fiona.errors import DriverError
+from pyogrio.errors import DataSourceError
 
 
 def scan_dataframe(filename: str, **kwargs):
@@ -35,7 +35,7 @@ def read_geodataframe(filename: str, columns=None):
     else:
         try:
             gdf = gpd.read_file(filename, columns=columns, engine="pyogrio")
-        except DriverError:
+        except DataSourceError:
             raise Exception(f"Unsupported format for input file: `{filename}`")
     return gdf
 

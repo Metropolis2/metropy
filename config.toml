@@ -24,7 +24,7 @@ raw_edges_file = "./output/road_network/edges_raw.parquet"
 # process (possible extensions: parquet, geojson, fgb, shp).
 clean_edges_file = "./output/road_network/edges_clean.parquet"
 # Path to the file where the edge penalties are stored.
-edge_penalties_file = "/home/ljavaudin/Projects/SGP_Ligne18/output/road_network/edges_penalties_lasso.parquet"
+edge_penalties_file = "./output/road_network/edges_penalties.parquet"
 # Optional list of highway tags to be excluded from the list of potential origin / destination edges.
 forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
@@ -482,7 +482,7 @@ main_road_types = [
 ]
 # Path to the output file where the car trip details are stored
 # (possible extensions: Parquet, CSV).
-trips_filename = "./output/routing/car_split_merged.parquet"
+trips_filename = "./output/routing/car_split.parquet"
 # Path to the output file where the main status of edges is sorted
 # (possible extensions: Parquet, CSV).
 main_edges_filename = "./output/road_network/edges_main.parquet"
