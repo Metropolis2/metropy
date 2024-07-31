@@ -371,11 +371,11 @@ def find_connections(results: pl.DataFrame, edges: pl.DataFrame, main_edges: set
         .with_columns(
             pl.col("route")
             .list.first()
-            .replace(edges["edge_id"], edges["source"], return_dtype=pl.UInt64)
+            .replace_strict(edges["edge_id"], edges["source"], return_dtype=pl.UInt64)
             .alias("origin_node"),
             pl.col("route")
             .list.last()
-            .replace(edges["edge_id"], edges["target"], return_dtype=pl.UInt64)
+            .replace_strict(edges["edge_id"], edges["target"], return_dtype=pl.UInt64)
             .alias("destination_node"),
         )
     )
@@ -399,21 +399,25 @@ def find_connections(results: pl.DataFrame, edges: pl.DataFrame, main_edges: set
         .with_columns(
             pl.col("route")
             .list.get(pl.col("first_idx_main"))
-            .replace(edges["edge_id"], edges["source"], return_dtype=pl.UInt64)
+            .replace_strict(edges["edge_id"], edges["source"], return_dtype=pl.UInt64)
             .alias("access_node"),
             pl.col("route")
             .list.get(pl.col("last_idx_main") - 1)
-            .replace(edges["edge_id"], edges["target"], return_dtype=pl.UInt64)
+            .replace_strict(edges["edge_id"], edges["target"], return_dtype=pl.UInt64)
             .alias("egress_node"),
             pl.col("access_part")
             .list.eval(
-                pl.element().replace(edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64)
+                pl.element().replace_strict(
+                    edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64
+                )
             )
             .list.sum()
             .alias("access_time"),
             pl.col("egress_part")
             .list.eval(
-                pl.element().replace(edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64)
+                pl.element().replace_strict(
+                    edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64
+                )
             )
             .list.sum()
             .alias("egress_time"),

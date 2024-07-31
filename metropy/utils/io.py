@@ -46,7 +46,7 @@ def save_dataframe(df: pl.DataFrame, filename: str):
     if not os.path.isdir(dirname):
         os.makedirs(dirname)
     if filename.endswith("parquet"):
-        df.write_parquet(filename)
+        df.write_parquet(filename, use_pyarrow=True)
     elif filename.endswith("csv"):
         df.write_csv(filename)
     else:
