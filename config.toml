@@ -46,7 +46,7 @@ format = "Parquet"
 # Ratio of population that is simulated.
 simulation_ratio = 0.2
 # Simulation period.
-period = [0.0, 108_000]
+period = [10_800, 108_000]
 # Time interval between two breakpoints in the travel-time functions (in seconds).
 recording_interval = 900.0
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).

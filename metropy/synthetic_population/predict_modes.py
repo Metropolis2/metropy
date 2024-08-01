@@ -68,7 +68,7 @@ def read_population(directory: str, df_survey: pl.DataFrame):
     survey_mean = (df_survey["od_distance"] * df_survey["weight"]).sum() / df_survey["weight"].sum()
     df = df.with_columns(pl.col("od_distance") * survey_mean / pop_mean)
     # TODO: This is specific to the Ile-de-France case and should be handled differently.
-    idf_dep_dict = {"27": "78", "45": "91", "60": "95"}
+    idf_dep_dict = {"27": "78", "28": "78", "45": "91", "60": "95", "89": "77"}
     df = df.with_columns(
         pl.col("departement_origin").replace(idf_dep_dict),
         pl.col("departement_destination").replace(idf_dep_dict),

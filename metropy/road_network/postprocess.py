@@ -139,7 +139,7 @@ def select_connected(gdf):
 
 
 def reindex(gdf):
-    gdf["edge_id"] = np.arange(len(gdf))
+    gdf["edge_id"] = np.arange(len(gdf), dtype=np.uint64)
     return gdf
 
 

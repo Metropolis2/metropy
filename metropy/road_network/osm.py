@@ -2,6 +2,7 @@ import os
 import time
 
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 import osmium
 from osmium.geom import WKBFactory
@@ -606,6 +607,9 @@ class EdgeReader(osmium.SimpleHandler):
     def post_process(self, urban_area, metric_crs: str):
         edges = gpd.GeoDataFrame(self.edges, crs="EPSG:4326")
 
+        edges["source"] = edges["source"].astype(pd.UInt64Dtype())
+        edges["target"] = edges["target"].astype(pd.UInt64Dtype())
+
         columns = [
             "geometry",
             "source",
@@ -633,7 +637,7 @@ class EdgeReader(osmium.SimpleHandler):
 
         edges = edges.loc[:, columns].copy()
 
-        edges["edge_id"] = np.arange(len(edges))
+        edges["edge_id"] = np.arange(len(edges), dtype=np.uint64)
 
         self.edges_df = edges
 

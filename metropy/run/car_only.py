@@ -80,7 +80,9 @@ def generate_road_network(edges: pl.LazyFrame, config: dict):
             config["edge_capacity"], dict
         ), "Edge capacities must be specified when `use_bottleneck=true`."
         edges = edges.with_columns(
-            bottleneck_flow=pl.col("road_type").replace_strict(config["edge_capacity"], return_dtype=pl.Float64)
+            bottleneck_flow=pl.col("road_type").replace_strict(
+                config["edge_capacity"], return_dtype=pl.Float64
+            )
             / 3600
         )
         columns.append("bottleneck_flow")
@@ -99,7 +101,7 @@ def generate_road_network(edges: pl.LazyFrame, config: dict):
     return edges_df, vehicles
 
 
-def read_trips(population_directory: str, car_split_filename: str):
+def read_trips(population_directory: str, car_split_filename: str, period: list[float]):
     print("Reading trips")
     trips = metro_io.scan_dataframe(os.path.join(population_directory, "trips.parquet")).rename(
         {"person_id": "agent_id"}
@@ -109,6 +111,8 @@ def read_trips(population_directory: str, car_split_filename: str):
         (pl.col("origin_lng") != pl.col("destination_lng"))
         | (pl.col("origin_lat") != pl.col("destination_lat"))
     )
+    # Remove trips outside of the simulation period.
+    trips = trips.filter(pl.col("departure_time").is_between(period[0], period[1]))
     car_split = metro_io.scan_dataframe(car_split_filename)
     trips = trips.join(car_split, on="trip_id", how="left", coalesce=True)
     trip_modes = metro_io.scan_dataframe(
@@ -126,12 +130,16 @@ def generate_agents(trips: pl.LazyFrame):
 
     print("Creating alternative-level DataFrame")
     # Alternative-level values.
-    alts = trips.group_by("agent_id").agg(
-        pl.lit(1).alias("alt_id"),
-        pl.col("access_time").first().alias("origin_delay"),
-        pl.lit("Constant").alias("dt_choice.type"),
-        pl.col("departure_time").first().alias("dt_choice.departure_time"),
-    ).collect()
+    alts = (
+        trips.group_by("agent_id")
+        .agg(
+            pl.lit(1).alias("alt_id"),
+            pl.col("access_time").first().alias("origin_delay"),
+            pl.lit("Constant").alias("dt_choice.type"),
+            pl.col("departure_time").first().alias("dt_choice.departure_time"),
+        )
+        .collect()
+    )
 
     print("Creating trip-level DataFrame")
     # Trip-level values.
@@ -200,7 +208,9 @@ def write_road_network(run_directory: str, edges: pl.DataFrame, vehicles: pl.Dat
     print("Writing edges")
     edges.write_parquet(os.path.join(run_directory, "input", "edges.parquet"), use_pyarrow=True)
     print("Writing vehicle types")
-    vehicles.write_parquet(os.path.join(run_directory, "input", "vehicles.parquet"), use_pyarrow=True)
+    vehicles.write_parquet(
+        os.path.join(run_directory, "input", "vehicles.parquet"), use_pyarrow=True
+    )
 
 
 def write_parameters(run_directory: str, config: dict):
@@ -240,10 +250,16 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(run_directory, "input")):
         os.makedirs(os.path.join(run_directory, "input"))
 
-    edges = read_edges(config["clean_edges_file"],
-                       config["routing"]["car_split"]["main_edges_filename"],
-                       config["edge_penalties_file"])
-    trips = read_trips(config["population_directory"], config["car_split"]["trips_filename"])
+    edges = read_edges(
+        config["clean_edges_file"],
+        config["routing"]["car_split"]["main_edges_filename"],
+        config["edge_penalties_file"],
+    )
+    trips = read_trips(
+        config["population_directory"],
+        config["routing"]["car_split"]["trips_filename"],
+        config["period"],
+    )
 
     agents, alts, trips, used_nodes = generate_agents(trips)
 
