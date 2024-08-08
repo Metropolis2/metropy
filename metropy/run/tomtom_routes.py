@@ -14,14 +14,14 @@ def read_tomtom_paths(input_file: str, edges: pl.DataFrame, period: list[float])
     lf = lf.filter(pl.col("departure_time").dt.weekday() <= 5)
     # Create departure time column (in seconds after midnight).
     lf = lf.with_columns(
-        td=(
+        dt=(
             pl.col("departure_time").dt.hour().cast(pl.UInt64) * 3600
             + pl.col("departure_time").dt.minute().cast(pl.UInt64) * 60
             + pl.col("departure_time").dt.second().cast(pl.UInt64)
         ).cast(pl.Float64)
     )
     # Filter-out trips outside of the period.
-    lf = lf.filter(pl.col("td") >= period[0], pl.col("td") <= period[1])
+    lf = lf.filter(pl.col("dt") >= period[0], pl.col("dt") <= period[1])
     # Filter-out paths where some edges are not part of the road network (probably the parallel
     # edges).
     edge_ids = set(edges["edge_id"])
@@ -77,7 +77,7 @@ def generate_agents(tomtom: pl.DataFrame):
         "agent_id",
         pl.lit(1).alias("alt_id"),
         pl.lit("Constant").alias("dt_choice.type"),
-        pl.col("td").alias("dt_choice.departure_time"),
+        pl.col("dt").alias("dt_choice.departure_time"),
     )
 
     print("Creating trip-level DataFrame")
