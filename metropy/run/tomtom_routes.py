@@ -28,8 +28,14 @@ def read_tomtom_paths(input_file: str, edges: pl.DataFrame, period: list[float])
     lf = lf.filter(pl.col("cpath").list.eval(pl.element().is_in(edge_ids)).list.all())
     # Find origin and destination nodes.
     lf = lf.with_columns(
-        pl.col("cpath").list.first().replace_strict(edges["edge_id"], edges["source"]),
-        pl.col("cpath").list.last().replace_strict(edges["edge_id"], edges["target"]),
+        pl.col("cpath")
+        .list.first()
+        .replace_strict(edges["edge_id"], edges["source"])
+        .alias("origin"),
+        pl.col("cpath")
+        .list.last()
+        .replace_strict(edges["edge_id"], edges["target"])
+        .alias("destination"),
     )
     df = lf.select("id", "cpath", "dt").collect()
     print("Number of paths read: {:,}".format(len(df)))
@@ -161,6 +167,4 @@ if __name__ == "__main__":
 
     base_functions.write_road_network(run_directory, edges, vehicles)
 
-    write_parameters(run_directory, config["run"],
-     config["run"]["car_only"]["directory"]
-                     )
+    write_parameters(run_directory, config["run"], config["run"]["car_only"]["directory"])
