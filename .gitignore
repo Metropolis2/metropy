@@ -4,7 +4,7 @@ output/
 tmp/
 execs/
 qgis/
-run/
+/run/
 secrets.toml
 
 # Byte-compiled / optimized / DLL files
