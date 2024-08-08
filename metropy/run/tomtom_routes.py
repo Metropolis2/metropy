@@ -108,6 +108,7 @@ def generate_agents(tomtom: pl.DataFrame):
 
 def write_parameters(run_directory: str, config: dict, car_only_directory: str):
     parameters = base_functions.PARAMETERS.copy()
+    parameters["learning_model"]["value"] = 0.0
     parameters["input_files"]["road_network_conditions"] = os.path.join(
         car_only_directory, "output", "net_cond_next_exp_edge_ttfs.parquet"
     )
