@@ -37,7 +37,7 @@ def read_tomtom_paths(input_file: str, edges: pl.DataFrame, period: list[float])
         .replace_strict(edges["edge_id"], edges["target"])
         .alias("destination"),
     )
-    df = lf.select("id", "cpath", "dt").collect()
+    df = lf.select("id", "cpath", "dt", "origin", "destination").collect()
     print("Number of paths read: {:,}".format(len(df)))
     return df
 
