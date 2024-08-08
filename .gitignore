@@ -3,6 +3,8 @@ data/
 output/
 tmp/
 execs/
+qgis/
+run/
 secrets.toml
 
 # Byte-compiled / optimized / DLL files

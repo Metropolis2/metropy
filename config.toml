@@ -46,7 +46,7 @@ format = "Parquet"
 # Ratio of population that is simulated.
 simulation_ratio = 0.2
 # Simulation period.
-period = [10_800, 108_000]
+period = [10_800, 97_200]
 # Time interval between two breakpoints in the travel-time functions (in seconds).
 recording_interval = 900.0
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
@@ -55,6 +55,9 @@ smoothing_factor = 0.02
 spillback = true
 # Maximum amount of time (in seconds) a vehicle can be pending to enter the next edge.
 max_pending_duration = 30.0
+# Speed (in meters per second) at which waves move backward in spillback conditions.
+# Comment to use instantaneous backward wave propagation.
+backward_wave_speed = 4.0
 # Routing algorithm to use in METROPOLIS (Intersect or TCH).
 routing_algorithm = "Intersect"
 # Headway of car vehicles.
@@ -84,7 +87,6 @@ residential = 600
 #road = 300
 #service = 300
 
-
 [run.car_only]
 # Directory where the files for the car-only run are stored.
 directory = "./run/car_only/"
@@ -92,6 +94,10 @@ directory = "./run/car_only/"
 smoothing_factor = 0.02
 # Number of iterations to run.
 nb_iterations = 100
+
+[run.tomtom_routes]
+# Directory where the files for the TomTom-routes run are stored.
+directory = "./run/tomtom_routes/"
 
 [osm]
 # Path to the .osm.pbf file to use as input.
