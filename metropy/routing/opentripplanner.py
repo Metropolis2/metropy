@@ -204,7 +204,7 @@ def get_least_cost_itinerary(row, config: dict, nb_tries=0):
     if it is None:
         return (row["trip_id"], None, None)
     legs = [clean_leg(leg, i) for i, leg in enumerate(it["legs"])]
-    return row["trip_id"], it["duration"], legs
+    return row["trip_id"], it["duration"], it["generalizedCost"], legs
 
 
 def run_queries_batch(ods: pl.DataFrame, config: dict):
@@ -220,6 +220,7 @@ def run_queries_batch(ods: pl.DataFrame, config: dict):
         schema=[
             ("trip_id", pl.UInt64),
             ("travel_time", pl.Float64),
+            ("generalized_cost", pl.Float64),
             (
                 "legs",
                 pl.List(
