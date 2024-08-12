@@ -189,7 +189,7 @@ def get_least_cost_itinerary(row, config: dict, nb_tries=0):
     if "errors" in data:
         if nb_tries > NB_TRIES:
             print(data)
-            return (row["trip_id"], None, None)
+            return (row["trip_id"], None, None, None)
         else:
             # Retry.
             return get_least_cost_itinerary(row, config, nb_tries + 1)
@@ -202,7 +202,7 @@ def get_least_cost_itinerary(row, config: dict, nb_tries=0):
         default=None,
     )
     if it is None:
-        return (row["trip_id"], None, None)
+        return (row["trip_id"], None, None, None)
     legs = [clean_leg(leg, i) for i, leg in enumerate(it["legs"])]
     return row["trip_id"], it["duration"], it["generalizedCost"], legs
 
