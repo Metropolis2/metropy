@@ -15,7 +15,7 @@ routing_exec = "./execs/routing_cli"
 tmp_directory = "./tmp/"
 
 # Directory where the run input / output are stored.
-run_directory = "./run/"
+run_directory = "./run/car_only"
 
 # Path to the file where the imported edges of the road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -222,6 +222,13 @@ residential = 1
 #road = 1
 #service = 1
 
+[road_network.restriction_area]
+# Path to the GeoDataFrame file with the definition of the restriction area.
+# If the GeoDataFrame has more than one row, the unary of the geometries is taken.
+area_filename = "./data/lez/lez.geojson"
+# Path to the output filename which stores the indicator inside / outside the area for all edges.
+output_filename = "./output/road_network/edges_lez.parquet"
+
 [osm_walk]
 # Path to the .osm.pbf file to use as input.
 input_file = "./data/ile-de-france-240101.osm.pbf"
@@ -411,6 +418,57 @@ radius = 100
 # (possible extensions: parquet).
 output_filename = "./output/calibration/match_results.parquet"
 
+[calibration.variables]
+# Variables that can be used in the regression of calibration together with their type.
+# Four options (that can be combined):
+# - `var = true`: The modalities will be `true` and `false`. The variable needs to be of boolean type.
+# - `var = [a, b, c]`: The modalities will be (-infinity, a], (a, b], (b, c], (c, +infinity).
+#   The modalities with no observation are not created. The variable needs to be of numeric type.
+# - `var = x`: The modalities will be 0, 1, 2, ..., x, [x, +infinity). The modalities with no
+#   observation are not created. The variable needs to be of integer type.
+# - Table `calibration.variables.var` of `key = value`. The modalities will consist in all values
+#   given. The variable needs to be of categorical type, all unique values need to be set as a key.
+urban = true
+roundabout = true
+traffic_signals = true
+stop_sign = true
+give_way_sign = true
+speed = [30.0, 50.0, 70.0, 80.0, 90.0, 110.0, 130.0]
+lanes = [1.0, 2.0, 3.0]
+target_incomings = 4
+source_incomings = 4
+target_outgoings = 4
+source_outgoings = 4
+
+[calibration.variables.road_type]
+unclassified = "unclassified"
+#road = "unclassified"
+residential = "residential"
+#service = "residential"
+living_street = "living_street"
+tertiary = "tertiary"
+tertiary_link = "tertiary"
+secondary = "secondary"
+secondary_link = "secondary"
+primary_link = "primary_link"
+primary = "primary"
+trunk = "trunk"
+trunk_link = "trunk_link"
+motorway_link = "motorway_link"
+motorway = "motorway"
+
+[calibration.capacities_calibration]
+# List of variables to be used in the regression.
+# explanatory_variables = ["road_type", "speed", "urban", "roundabout", "traffic_signals", "stop_sign", "give_way_sign", "lanes", "target_incomings", "target_outgoings", "source_incomings", "source_outgoings"]
+# explanatory_variables = ["road_type", "speed", "roundabout", "lanes", "source_incomings"]
+explanatory_variables = ["traffic_signals"]
+# List of interaction variables to be used in the regression.
+# interaction_variables = [["road_type", "speed"], ["urban", "speed"]]
+# interaction_variables = [["road_type", "traffic_signals"]]
+interaction_variables = []
+# List of alpha penalties to try in the LASSO regression.
+# alphas = [5, 10, 100, 200, 500]
+
 [travel_survey]
 # Path to the directory where the travel survey is stored.
 directory = "./data/travel_survey/egt/"
@@ -494,6 +552,11 @@ trips_filename = "./output/routing/car_split.parquet"
 main_edges_filename = "./output/road_network/edges_main.parquet"
 # Whether graphs of the variables should be saved.
 output_graphs = true
+
+[road_results.edge_values]
+# Path to the output file with the edge-level values
+# (possible extensions: parquet, csv).
+output_filename = "./output/road_results/edge_values.parquet"
 
 [road_results.chevelus]
 # Id of the route to be selected.
