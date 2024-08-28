@@ -13,6 +13,7 @@ from shapely.geometry import LineString
 import metropy.utils.mpl as mpl
 import metropy.utils.io as metro_io
 
+
 def read_pt_itineraries(filename: str):
     print("Reading public-transit itineraries...")
     df = metro_io.scan_dataframe(filename)
@@ -40,10 +41,12 @@ def read_pt_itineraries(filename: str):
 
 
 def filter_pt_trips(df: pl.LazyFrame, run_directory: str, pt_alt_id: int):
-    agent_results = metro_io.scan_dataframe(os.path.join(run_directory, "output",
-                                                         "agent_results.parquet"))
-    trip_results = metro_io.scan_dataframe(os.path.join(run_directory, "output",
-                                                        "trip_results.parquet"))
+    agent_results = metro_io.scan_dataframe(
+        os.path.join(run_directory, "output", "agent_results.parquet")
+    )
+    trip_results = metro_io.scan_dataframe(
+        os.path.join(run_directory, "output", "trip_results.parquet")
+    )
     pt_agents = agent_results.filter(pl.col("selected_alt_id") == pt_alt_id)
     pt_trips = trip_results.join(pt_agents, on="agent_id", how="semi")
     df = df.join(pt_trips, on="trip_id", how="semi")
@@ -140,7 +143,7 @@ def print_stats_and_plot_graphs(df: pl.DataFrame, gtfs_zipfile: str, graph_dir: 
     fig, ax = mpl.get_figure(fraction=0.8)
     ax.pie(
         modes["count"],
-        labels=modes["mode"],
+        labels=list(modes["mode"]),
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
@@ -250,7 +253,9 @@ def print_stats_and_plot_graphs(df: pl.DataFrame, gtfs_zipfile: str, graph_dir: 
         .sort("count", descending=True)
         .collect()
     )
-    gtfs_stops = read_as_dataframe(gtfs_zipfile, "stops.txt").select("stop_id", "stop_name")
+    gtfs_stops = read_as_dataframe(gtfs_zipfile, "stops.txt").select(
+        pl.col("stop_id").cast(pl.String), "stop_name"
+    )
     stops = stops.join(
         gtfs_stops,
         on="stop_id",
@@ -410,7 +415,11 @@ def get_connections(df: pl.DataFrame, gtfs_zipfile: str):
     )
     # Add stop name, latitude and longitude.
     columns = ["stop_id", "stop_name", "stop_lat", "stop_lon"]
-    stops = read_as_dataframe(gtfs_zipfile, "stops.txt").select(columns)
+    stops = (
+        read_as_dataframe(gtfs_zipfile, "stops.txt")
+        .select(columns)
+        .with_columns(pl.col("stop_id").cast(pl.String))
+    )
     connections = connections.join(
         stops.lazy().rename({col: f"{col}_from" for col in columns}),
         left_on="from",
@@ -425,17 +434,24 @@ def get_connections(df: pl.DataFrame, gtfs_zipfile: str):
         coalesce=False,
     )
     # Add route name, route type and route color.
-    routes = read_as_dataframe(gtfs_zipfile, "routes.txt").select(
+    routes = read_as_dataframe(gtfs_zipfile, "routes.txt")
+    columns = [
         "route_id",
         "agency_id",
         "route_short_name",
         "route_long_name",
         "route_type",
-        "route_color",
-    )
+    ]
+    if "route_color" in routes.columns:
+        has_color = True
+        columns.append("route_color")
+    else:
+        has_color = False
     connections = connections.join(
-        routes.lazy(), on="route_id", how="left", coalesce=False
-    ).with_columns(pl.col("route_color").str.replace("^", "#"))
+        routes.select(columns).lazy(), on="route_id", how="left", coalesce=False
+    )
+    if has_color:
+        connections = connections.with_columns(pl.col("route_color").str.replace("^", "#"))
     return connections.collect()
 
 
@@ -499,9 +515,8 @@ def to_geopandas(connections):
         .to_struct("coords")
         .map_elements(get_linestring, return_dtype=pl.Object)
     )
-    gdf = gpd.GeoDataFrame(
-        data=connections.to_pandas()
-    ).set_geometry(linestrings.to_list(), crs="EPSG:4326")
+    gdf = gpd.GeoDataFrame(data=connections.to_pandas())
+    gdf.set_geometry(linestrings.to_list(), crs="EPSG:4326", inplace=True)
     return gdf
 
 
@@ -551,7 +566,6 @@ def get_indirect_connections(stop_list):
             for to_stop in stop_list[i + 2 :]
             if from_stop not in looped_stops and to_stop not in looped_stops
         ]
-
 
 
 def get_linestring(coords):
