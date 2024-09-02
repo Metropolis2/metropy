@@ -36,6 +36,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - OpenStreetMap network import: `metropy.road_network.osm`
 - OpenStreetMap network import (for walking trips): `metropy.road_network.osm_walk`
 - Road-network post-processing: `metropy.road_network.postprocess`
+- Identify a restricted area on the road network: `metropy.road_network.restriction_area`
 - METROPOLIS2 road-network writer: `metropy.road_network.write_metropolis_edges`
 - Request routing queries from TomTom API: `metropy.calibration.tomtom_requests`
 - Map matching of routing results to the road network: `metropy.calibration.map_matching`

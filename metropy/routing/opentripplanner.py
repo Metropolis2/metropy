@@ -217,6 +217,7 @@ def run_queries_batch(ods: pl.DataFrame, config: dict):
     results = [future.result() for future in futures]
     df = pl.from_records(
         results,
+        orient="row",
         schema=[
             ("trip_id", pl.UInt64),
             ("travel_time", pl.Float64),

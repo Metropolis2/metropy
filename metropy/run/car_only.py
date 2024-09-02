@@ -3,7 +3,7 @@ import json
 
 import polars as pl
 
-import metropy.run.base as base_functions
+import metropy.run.base as metro_run
 
 
 def generate_agents(trips: pl.LazyFrame):
@@ -79,7 +79,7 @@ def generate_agents(trips: pl.LazyFrame):
 
 
 def write_parameters(run_directory: str, config: dict):
-    parameters = base_functions.PARAMETERS.copy()
+    parameters = metro_run.PARAMETERS.copy()
     parameters["learning_model"]["value"] = config["car_only"]["smoothing_factor"]
     parameters["max_iterations"] = config["car_only"]["nb_iterations"]
     parameters["period"] = config["period"]
@@ -117,12 +117,12 @@ if __name__ == "__main__":
     if not os.path.isdir(os.path.join(run_directory, "input")):
         os.makedirs(os.path.join(run_directory, "input"))
 
-    edges = base_functions.read_edges(
+    edges = metro_run.read_edges(
         config["clean_edges_file"],
         config.get("routing", dict).get("car_split", dict).get("main_edges_filename"),
         config["edge_penalties_file"],
     )
-    trips = base_functions.read_trips(
+    trips = metro_run.read_trips(
         config["population_directory"],
         config["routing"]["car_split"]["trips_filename"],
         config["run"]["period"],
@@ -130,9 +130,10 @@ if __name__ == "__main__":
 
     agents, alts, trips, used_nodes = generate_agents(trips)
 
-    base_functions.write_agents(run_directory, agents, alts, trips)
+    metro_run.write_agents(run_directory, agents, alts, trips)
 
-    edges, vehicles = base_functions.generate_road_network(edges, config["run"])
+    edges = metro_run.generate_edges(edges, config["run"])
+    vehicles = metro_run.generate_vehicles()
 
     all_nodes = set(edges["source"]).union(set(edges["target"]))
     if any(n not in all_nodes for n in used_nodes):
@@ -140,6 +141,6 @@ if __name__ == "__main__":
             "Warning: the origin / destination node of some trips is not a valid node of the road network"
         )
 
-    base_functions.write_road_network(run_directory, edges, vehicles)
+    metro_run.write_road_network(run_directory, edges, vehicles)
 
     write_parameters(run_directory, config["run"])

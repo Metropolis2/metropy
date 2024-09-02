@@ -60,8 +60,8 @@ def read_edges(
     return edges
 
 
-def generate_road_network(edges: pl.LazyFrame, config: dict):
-    print("Creating Metropolis road network")
+def generate_vehicles(config: dict):
+    print("Creating vehicle types...")
     vehicles = [
         {
             "vehicle_id": 1,
@@ -70,6 +70,11 @@ def generate_road_network(edges: pl.LazyFrame, config: dict):
         },
     ]
     vehicles = pl.DataFrame(vehicles)
+    return vehicles
+
+
+def generate_edges(edges: pl.LazyFrame, config: dict):
+    print("Creating METROPOLIS edges...")
     # Convert edges' speed from km/h to m/s.
     edges = edges.with_columns(pl.col("speed") / 3.6)
     edges = edges.with_columns(pl.lit(config.get("overtaking", True)).alias("overtaking"))
@@ -108,7 +113,7 @@ def generate_road_network(edges: pl.LazyFrame, config: dict):
     if n0 > n1:
         print("Warning: Discarded {:,} parallel edges".format(n0 - n1))
     edges_df = edges_df.sort("source")
-    return edges_df, vehicles
+    return edges_df
 
 
 def read_trips(population_directory: str, car_split_filename: str, period: list[float]):

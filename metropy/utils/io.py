@@ -34,7 +34,8 @@ def read_geodataframe(filename: str, columns=None):
         gdf = gpd.read_parquet(filename, columns=columns)
     else:
         try:
-            gdf = gpd.read_file(filename, columns=columns, engine="pyogrio")
+            gdf = gpd.GeoDataFrame(gpd.read_file(filename, columns=columns,
+                                                                   engine="pyogrio"))
         except DataSourceError:
             raise Exception(f"Unsupported format for input file: `{filename}`")
     return gdf

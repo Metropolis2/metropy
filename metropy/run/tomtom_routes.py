@@ -4,7 +4,7 @@ import json
 import polars as pl
 
 import metropy.utils.io as metro_io
-import metropy.run.base as base_functions
+import metropy.run.base as metro_run
 
 
 def read_tomtom_paths(input_file: str, edges: pl.DataFrame, period: list[float]):
@@ -107,10 +107,10 @@ def generate_agents(tomtom: pl.DataFrame):
 
 
 def write_parameters(run_directory: str, config: dict, car_only_directory: str):
-    parameters = base_functions.PARAMETERS.copy()
+    parameters = metro_run.PARAMETERS.copy()
     parameters["learning_model"]["value"] = 0.0
     parameters["input_files"]["road_network_conditions"] = os.path.join(
-        car_only_directory, "output", "net_cond_next_exp_edge_ttfs.parquet"
+        os.path.abspath(car_only_directory), "output", "net_cond_next_exp_edge_ttfs.parquet"
     )
     parameters["period"] = config["period"]
     parameters["road_network"]["recording_interval"] = config["recording_interval"]
@@ -130,7 +130,6 @@ if __name__ == "__main__":
 
     config = read_config()
     mandatory_keys = [
-        "crs",
         "clean_edges_file",
         "population_directory",
         "calibration.post_map_matching.output_filename",
@@ -150,12 +149,13 @@ if __name__ == "__main__":
         os.makedirs(os.path.join(run_directory, "input"))
 
     # Read edges without the main file so that all edges are included (except the parallel ones).
-    edges = base_functions.read_edges(
+    edges = metro_run.read_edges(
         config["clean_edges_file"],
         None,
         config["edge_penalties_file"],
     )
-    edges, vehicles = base_functions.generate_road_network(edges, config["run"])
+    edges = metro_run.generate_edges(edges, config["run"])
+    vehicles = metro_run.generate_vehicles()
 
     tomtom = read_tomtom_paths(
         config["calibration"]["post_map_matching"]["output_filename"],
@@ -164,8 +164,8 @@ if __name__ == "__main__":
     )
     agents, alts, trips = generate_agents(tomtom)
 
-    base_functions.write_agents(run_directory, agents, alts, trips)
+    metro_run.write_agents(run_directory, agents, alts, trips)
 
-    base_functions.write_road_network(run_directory, edges, vehicles)
+    metro_run.write_road_network(run_directory, edges, vehicles)
 
     write_parameters(run_directory, config["run"], config["run"]["car_only"]["directory"])
