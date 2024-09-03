@@ -27,6 +27,13 @@ def read_trips(input_directory: str):
         os.path.join(input_directory, "trips.parquet"),
         columns=columns,
     )
+    truck_filename = os.path.join(input_directory, "truck_trips.parquet")
+    if os.path.isfile(truck_filename):
+        truck_df = pl.read_parquet(truck_filename, columns=columns)
+        df = pl.concat((df, truck_df), how="vertical")
+        assert df["trip_id"].n_unique() == len(
+            df
+        ), "Column `trip_id` must be unique over agent and truck trips"
     n0 = len(df)
     df = df.filter(
         (pl.col("origin_lng") != pl.col("destination_lng"))
@@ -59,7 +66,7 @@ def read_edges(
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
         filename,
-        columns=["edge_id", "source", "target", "length", "speed", "road_type", "geometry"],
+        columns=["edge_id", "source", "target", "length", "speed_limit", "road_type", "geometry"],
     )
     gdf.to_crs(crs, inplace=True)
     if forbidden_road_types is not None:
@@ -73,14 +80,14 @@ def read_edges(
             print("Using multiplicative penalties")
             gdf = gpd.GeoDataFrame(
                 gdf.merge(
-                    penalties.select("edge_id", fixed_speed="speed").to_pandas(),
+                    penalties.select("edge_id", "speed").to_pandas(),
                     on="edge_id",
                     how="left",
                 )
             )
-            gdf["travel_time"] = gdf["length"] / (gdf["fixed_speed"] / 3.6)
-        else:
             gdf["travel_time"] = gdf["length"] / (gdf["speed"] / 3.6)
+        else:
+            gdf["travel_time"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
         if "additive_penalty" in penalties.columns:
             print("Using additive penalties")
             gdf = gpd.GeoDataFrame(
@@ -91,6 +98,8 @@ def read_edges(
                 )
             )
             gdf["travel_time"] += gdf["additive_penalty"].fillna(0.0)
+    else:
+        gdf["travel_time"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
     return gdf
 
 
@@ -252,10 +261,10 @@ def prepare_routing(trips: pl.DataFrame, edges: gpd.GeoDataFrame, tmp_directory:
     print(f"Number of unique origin-destination pairs: {len(queries):,}")
     queries.write_parquet(os.path.join(tmp_directory, "queries.parquet"))
     print("Saving graph...")
-    edges = pl.from_pandas(edges.loc[:, ["edge_id", "source", "target", "travel_time", "main"]])
+    edges_df = pl.from_pandas(edges.loc[:, ["edge_id", "source", "target", "travel_time", "main"]])
     # Parallel edges are removed, keeping in priority edges of the main graph and with smallest
     # travel time.
-    edges.sort(["main", "travel_time"], descending=[True, False]).unique(
+    edges_df.sort(["main", "travel_time"], descending=[True, False]).unique(
         subset=["source", "target"], keep="first"
     ).sort("edge_id").select("edge_id", "source", "target", "travel_time").write_parquet(
         os.path.join(tmp_directory, "edges.parquet")
@@ -618,7 +627,7 @@ if __name__ == "__main__":
         config["clean_edges_file"],
         config["crs"],
         config.get("forbidden_road_types"),
-        config.get("edge_penalties_file"),
+        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
         config["routing"]["car_split"]["main_road_types"],
     )
 
