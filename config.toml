@@ -23,8 +23,6 @@ raw_edges_file = "./output/road_network/edges_raw.parquet"
 # Path to the file where the imported edges of the road network are stored after the cleaning
 # process (possible extensions: parquet, geojson, fgb, shp).
 clean_edges_file = "./output/road_network/edges_clean.parquet"
-# Path to the file where the edge penalties are stored.
-edge_penalties_file = "./output/road_network/edges_penalties.parquet"
 # Optional list of highway tags to be excluded from the list of potential origin / destination edges.
 forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
@@ -143,15 +141,15 @@ urban_landuse = [
   "recreation_ground",
   "military",
   "garages",
-  "religious"
+  "religious",
 ]
 
 
 [postprocess_network]
 # Minimum number of lanes allowed on edges.
 min_nb_lanes = 0.5
-# Minimum speed allowed on edges (in km/h).
-min_speed = 10
+# Minimum speed limit allowed on edges (in km/h).
+min_speed_limit = 10
 # Minimum length allowed on edges (in meters).
 min_length = 1
 # Whether the duplicate edges (edges with same source and target) should be removed.
@@ -168,8 +166,8 @@ print_stats = true
 # Whether graphs of the variables should be saved.
 output_graphs = true
 
-# Default speed per roadtype, in km/h, in rural areas.
-[postprocess_network.default_speed.rural]
+# Default speed limit per roadtype, in km/h, in rural areas.
+[postprocess_network.default_speed_limit.rural]
 motorway = 130
 trunk = 110
 primary = 80
@@ -186,8 +184,8 @@ residential = 50
 #road = 20
 #service = 20
 
-# Default speed per roadtype, in km/h, in urban areas.
-[postprocess_network.default_speed.urban]
+# Default speed limit per roadtype, in km/h, in urban areas.
+[postprocess_network.default_speed_limit.urban]
 motorway = 130
 trunk = 90
 primary = 50
@@ -239,25 +237,25 @@ output_graphs = true
 # OpenStreetMap's highway tags to import.
 # See https://wiki.openstreetmap.org/wiki/Key:highway
 highways = [
-    #"motorway",
-    #"motorway_link",
-    "trunk",
-    "trunk_link",
-    "primary",
-    "primary_link",
-    "secondary",
-    "secondary_link",
-    "tertiary",
-    "tertiary_link",
-    "living_street",
-    "unclassified",
-    "residential",
-    "road",
-    "service",
-    "track",
-    "footway",
-    "path",
-    "pedestrian",
+  #"motorway",
+  #"motorway_link",
+  "trunk",
+  "trunk_link",
+  "primary",
+  "primary_link",
+  "secondary",
+  "secondary_link",
+  "tertiary",
+  "tertiary_link",
+  "living_street",
+  "unclassified",
+  "residential",
+  "road",
+  "service",
+  "track",
+  "footway",
+  "path",
+  "pedestrian",
 ]
 
 [postprocess_network_walk]
@@ -433,7 +431,7 @@ roundabout = true
 traffic_signals = true
 stop_sign = true
 give_way_sign = true
-speed = [30.0, 50.0, 70.0, 80.0, 90.0, 110.0, 130.0]
+speed_limit = [30.0, 50.0, 70.0, 80.0, 90.0, 110.0, 130.0]
 lanes = [1.0, 2.0, 3.0]
 target_incomings = 4
 source_incomings = 4
@@ -457,13 +455,58 @@ trunk_link = "trunk_link"
 motorway_link = "motorway_link"
 motorway = "motorway"
 
+[calibration.free_flow_calibration]
+# Path to the output file where the edge penalties are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/road_network/edges_penalties.parquet"
+# Path to the output file where the LASSO coefficients are stored
+# (possible extensions: Parquet, CSV).
+coef_filename = "./output/calibration/free_flow_lasso_coef.parquet"
+# List of variables to be used additively in the regression.
+additive_variables = ["traffic_signals"]
+# List of interaction variables to be used additively in the regression.
+additive_interaction_variables = [["urban", "traffic_signals"]]
+# List of variables to be used additively in the regression.
+multiplicative_variables = ["road_type", "speed_limit"]
+# List of interaction variables to be used additively in the regression.
+multiplicative_interaction_variables = [
+  [
+    "road_type",
+    "speed_limit",
+  ],
+  [
+    "urban",
+    "speed_limit",
+  ],
+  [
+    "speed_limit",
+    "target_incomings",
+  ],
+  [
+    "speed_limit",
+    "target_outgoings",
+  ],
+  [
+    "target_incomings",
+    "target_outgoings",
+  ],
+]
+# List of alpha penalties to try in the LASSO regression.
+alphas = [1, 5, 10]
+# Lower bound for the additive penalty.
+additive_penalty_lower_bound = 0
+# Lower bound for the road speed on an edge (in km/h).
+road_speed_lower_bound = 10
+# Upper bound for the global speed on an edge (in km/h).
+global_speed_upper_bound = 140
+
 [calibration.capacities_calibration]
 # List of variables to be used in the regression.
-# explanatory_variables = ["road_type", "speed", "urban", "roundabout", "traffic_signals", "stop_sign", "give_way_sign", "lanes", "target_incomings", "target_outgoings", "source_incomings", "source_outgoings"]
-# explanatory_variables = ["road_type", "speed", "roundabout", "lanes", "source_incomings"]
+# explanatory_variables = ["road_type", "speed_limit", "urban", "roundabout", "traffic_signals", "stop_sign", "give_way_sign", "lanes", "target_incomings", "target_outgoings", "source_incomings", "source_outgoings"]
+# explanatory_variables = ["road_type", "speed_limit", "roundabout", "lanes", "source_incomings"]
 explanatory_variables = ["traffic_signals"]
 # List of interaction variables to be used in the regression.
-# interaction_variables = [["road_type", "speed"], ["urban", "speed"]]
+# interaction_variables = [["road_type", "speed_limit"], ["urban", "speed_limit"]]
 # interaction_variables = [["road_type", "traffic_signals"]]
 interaction_variables = []
 # List of alpha penalties to try in the LASSO regression.

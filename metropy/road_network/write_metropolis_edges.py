@@ -7,7 +7,6 @@ import sys
 import os
 import time
 import tomllib
-from collections import defaultdict
 
 import polars as pl
 
@@ -25,11 +24,11 @@ def read_edges(input_file):
     return edges
 
 
-def generate_road_network(edges, config):
+def generate_road_network(edges):
     print("Creating Metropolis road network")
-    edges = edges.with_columns(pl.col("speed") / 3.6)
+    edges = edges.with_columns(pl.col("speed_limit") / 3.6)
     edges = edges.with_columns(pl.lit(True).alias("overtaking"))
-    columns = ["edge_id", "source", "target", "speed", "length", "lanes", "overtaking"]
+    columns = ["edge_id", "source", "target", "speed_limit", "length", "lanes", "overtaking"]
     if "capacity" in edges.columns:
         edges = edges.with_columns((pl.col("capacity") / 3600.0).alias("bottleneck_flow"))
         columns.append("bottleneck_flow")
@@ -77,7 +76,7 @@ if __name__ == "__main__":
 
     edges = read_edges(input_file)
 
-    edges = generate_road_network(edges, config["metropolis"])
+    edges = generate_road_network(edges)
 
     print("Writing edges")
     if input_format.lower() == "parquet":

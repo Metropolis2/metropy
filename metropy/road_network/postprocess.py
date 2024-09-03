@@ -35,7 +35,7 @@ def read_edges(input_file: str, walk: bool):
         "road_type",
     ]
     if not walk:
-        columns.extend(["speed", "lanes"])
+        columns.extend(["speed_limit", "lanes"])
     for col in columns:
         if not col in gdf.columns:
             print("Error: Missing column {}".format(col))
@@ -43,33 +43,33 @@ def read_edges(input_file: str, walk: bool):
 
 
 def set_default_values(gdf, config):
-    # Set default speeds.
-    gdf["default_speed"] = gdf["speed"].isna()
+    # Set default speed limits.
+    gdf["default_speed_limit"] = gdf["speed_limit"].isna()
     if "urban" in gdf.columns:
-        # Set default speeds based on urban vs rural areas.
-        urban_speeds = config["default_speed"].get("urban")
-        if not isinstance(urban_speeds, dict):
+        # Set default speed limits based on urban vs rural areas.
+        urban_speed_limits = config["default_speed_limit"].get("urban")
+        if not isinstance(urban_speed_limits, dict):
             raise Exception(
-                "Missing or invalid table `postprocess_network.default_speed.urban` in config"
+                "Missing or invalid table `postprocess_network.default_speed_limit.urban` in config"
             )
-        rural_speeds = config["default_speed"].get("rural")
-        if not isinstance(rural_speeds, dict):
+        rural_speed_limits = config["default_speed_limit"].get("rural")
+        if not isinstance(rural_speed_limits, dict):
             raise Exception(
-                "Missing or invalid table `postprocess_network.default_speed.rural` in config"
+                "Missing or invalid table `postprocess_network.default_speed_limit.rural` in config"
             )
-        urban_speeds_df = pd.Series(urban_speeds, name="urban_speed")
-        rural_speeds_df = pd.Series(rural_speeds, name="rural_speed")
+        urban_speeds_df = pd.Series(urban_speed_limits, name="urban_speed")
+        rural_speeds_df = pd.Series(rural_speed_limits, name="rural_speed")
         default_speeds = pd.concat((urban_speeds_df, rural_speeds_df), axis=1)
         gdf = gdf.merge(default_speeds, left_on="road_type", right_index=True, how="left")
-        gdf.loc[gdf["default_speed"] & gdf["urban"], "speed"] = gdf["urban_speed"]
-        gdf.loc[gdf["default_speed"] & ~gdf["urban"], "speed"] = gdf["rural_speed"]
+        gdf.loc[gdf["default_speed_limit"] & gdf["urban"], "speed_limit"] = gdf["urban_speed"]
+        gdf.loc[gdf["default_speed_limit"] & ~gdf["urban"], "speed_limit"] = gdf["rural_speed"]
         gdf = gdf.drop(columns=["urban_speed", "rural_speed"])
     else:
-        speeds = config["default_speed"]
-        if not isinstance(speeds, dict):
-            raise Exception("Invalid table `postprocess_network.default_speed` in config")
-        gdf["speed"] = gdf["speed"].fillna(gdf["road_type"].map(speeds))
-    assert not gdf["speed"].isna().any()
+        speed_limits = config["default_speed_limit"]
+        if not isinstance(speed_limits, dict):
+            raise Exception("Invalid table `postprocess_network.default_speed_limit` in config")
+        gdf["speed_limit"] = gdf["speed_limit"].fillna(gdf["road_type"].map(speed_limits))
+    assert not gdf["speed_limit"].isna().any()
     # Set default number of lanes.
     gdf["default_lanes"] = gdf["lanes"].isna()
     nb_lanes = config["default_nb_lanes"]
@@ -98,7 +98,7 @@ def remove_duplicates(gdf, walk: bool):
     if walk:
         gdf.sort_values("length", ascending=True, inplace=True)
     else:
-        gdf["tt"] = gdf["length"] / (gdf["speed"] / 3.6)
+        gdf["tt"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
         gdf.sort_values(["tt"], ascending=[True], inplace=True)
         gdf.drop(columns="tt", inplace=True)
     # Drop duplicates.
@@ -146,7 +146,7 @@ def reindex(gdf):
 def check(gdf, config, walk: bool):
     if not walk:
         gdf["lanes"] = gdf["lanes"].clip(config.get("min_nb_lanes", 1))
-        gdf["speed"] = gdf["speed"].clip(config.get("min_speed", 1e-4))
+        gdf["speed_limit"] = gdf["speed_limit"].clip(config.get("min_speed_limit", 1e-4))
     gdf["length"] = gdf["length"].clip(config.get("min_length", 0.0))
     # Count number of incoming / outgoing edges for the source / target node.
     target_counts = gdf["target"].value_counts()
@@ -244,36 +244,36 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         # Length distribution hist.
         fig, ax = mpl.get_figure(fraction=0.8)
         bins = np.logspace(np.log(gdf["length"].min()), np.log(gdf["length"].max()), 50, base=np.e)
-        ax.hist(gdf["length"], bins=bins, density=True, color=mpl.CMP(0))
+        ax.hist(gdf["length"], bins=list(bins), density=True, color=mpl.CMP(0))
         ax.set_xscale("log")
         ax.set_xlabel("Length (meters, log scale)")
         ax.set_ylabel("Density")
         fig.tight_layout()
         fig.savefig(os.path.join(graph_dir, "length_distribution.pdf"))
-        # Speed distribution bar plot.
+        # Speed limit distribution bar plot.
         fig, ax = mpl.get_figure(fraction=0.8)
         bins = np.arange(
-            np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-            np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+            np.floor(gdf["speed_limit"].min() / 5.0) * 5.0 - 2.5,
+            np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
             5.0,
         )
-        ax.hist(gdf["speed"], bins=bins, density=True, color=mpl.CMP(0))
+        ax.hist(gdf["speed_limit"], bins=list(bins), density=True, color=mpl.CMP(0))
         ax.set_xlabel("Speed limit (km/h)")
         ax.set_ylabel("Density")
         fig.tight_layout()
-        fig.savefig(os.path.join(graph_dir, "speed_distribution.pdf"))
-        # Speed distribution bar plot, weighted by length.
+        fig.savefig(os.path.join(graph_dir, "speed_limit_distribution.pdf"))
+        # Speed limit distribution bar plot, weighted by length.
         fig, ax = mpl.get_figure(fraction=0.8)
         bins = np.arange(
-            np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-            np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+            np.floor(gdf["speed_limit"].min() / 5.0) * 5.0 - 2.5,
+            np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
             5.0,
         )
-        ax.hist(gdf["speed"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
+        ax.hist(gdf["speed_limit"], bins=list(bins), density=True, weights=gdf["length"], color=mpl.CMP(0))
         ax.set_xlabel("Speed limit (km/h)")
         ax.set_ylabel("Density (weighted by edge length)")
         fig.tight_layout()
-        fig.savefig(os.path.join(graph_dir, "speed_distribution_length_weights.pdf"))
+        fig.savefig(os.path.join(graph_dir, "speed_limit_distribution_length_weights.pdf"))
         # Lanes distribution bar plot.
         fig, ax = mpl.get_figure(fraction=0.8)
         mask = ~gdf["lanes"].isna()
@@ -313,8 +313,8 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         else:
             lengths[key] = value
     ax.pie(
-        lengths.values(),
-        labels=lengths.keys(),
+        list(lengths.values()),
+        labels=list(lengths.keys()),
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
@@ -336,8 +336,8 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str, walk: bool):
         else:
             lengths[key] = value
     ax.pie(
-        lengths.values(),
-        labels=lengths.keys(),
+        list(lengths.values()),
+        labels=list(lengths.keys()),
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
@@ -369,8 +369,7 @@ if __name__ == "__main__":
         "raw_edges_file",
         "clean_edges_file",
         "postprocess_network.default_nb_lanes",
-        #  "postprocess_network.default_capacity",
-        "postprocess_network.default_speed",
+        "postprocess_network.default_speed_limit",
     ]
     check_keys(config, mandatory_keys)
 

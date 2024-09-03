@@ -60,7 +60,7 @@ def read_edges(
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
         filename,
-        columns=["edge_id", "source", "target", "length", "speed", "road_type", "geometry"],
+        columns=["edge_id", "source", "target", "length", "speed_limit", "road_type", "geometry"],
     )
     gdf.to_crs(crs, inplace=True)
     if forbidden_road_types is not None:
@@ -73,14 +73,14 @@ def read_edges(
             print("Using multiplicative penalties")
             gdf = gpd.GeoDataFrame(
                 gdf.merge(
-                    penalties.select("edge_id", fixed_speed="speed").to_pandas(),
+                    penalties.select("edge_id", "speed").to_pandas(),
                     on="edge_id",
                     how="left",
                 )
             )
-            gdf["travel_time"] = gdf["length"] / (gdf["fixed_speed"] / 3.6)
-        else:
             gdf["travel_time"] = gdf["length"] / (gdf["speed"] / 3.6)
+        else:
+            gdf["travel_time"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
         if "additive_penalty" in penalties.columns:
             print("Using additive penalties")
             gdf = gpd.GeoDataFrame(
@@ -239,7 +239,7 @@ if __name__ == "__main__":
         config["clean_edges_file"],
         config["crs"],
         config.get("forbidden_road_types"),
-        config.get("edge_penalties_file"),
+        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
     )
 
     df = find_origin_destination_node(df, edges)

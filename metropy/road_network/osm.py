@@ -23,7 +23,7 @@ def import_network(config: dict, output_file: str, crs: str) -> gpd.GeoDataFrame
     - `osm_id`
     - `source`
     - `target`
-    - `speed` (km/h, can be null)
+    - `speed_limit` (km/h, can be null)
     - `length` (m)
     - `lanes` (can be null)
     - `urban` (bool, edge is in an urban area)
@@ -131,8 +131,8 @@ def print_stats(gdf: gpd.GeoDataFrame):
     print(f"Total urban edge length (km): {urban_length:,.3f} ({urban_length / tot_length:.1%})")
     rural_length = tot_length - urban_length
     print(f"Total rural edge length (km): {rural_length:,.3f} ({rural_length / tot_length:.1%})")
-    speed_na_count = gdf["speed"].isna().sum()
-    print(f"Number of null values for speed: {speed_na_count:,} ({speed_na_count / nb_edges:.1%})")
+    speed_na_count = gdf["speed_limit"].isna().sum()
+    print(f"Number of null values for speed_limit: {speed_na_count:,} ({speed_na_count / nb_edges:.1%})")
     lanes_na_count = gdf["lanes"].isna().sum()
     print(f"Number of null values for lanes: {lanes_na_count:,} ({lanes_na_count / nb_edges:.1%})")
 
@@ -150,30 +150,30 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
     ax.set_ylabel("Density")
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "length_distribution.pdf"))
-    # Speed distribution bar plot.
+    # Speed limit distribution bar plot.
     fig, ax = mpl.get_figure(fraction=0.8)
     bins = np.arange(
-        np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-        np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+        np.floor(gdf["speed_limit"].min() / 5.0) * 5.0 - 2.5,
+        np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
         5.0,
     )
-    ax.hist(gdf["speed"], bins=bins, density=True, color=mpl.CMP(0))
+    ax.hist(gdf["speed_limit"], bins=bins, density=True, color=mpl.CMP(0))
     ax.set_xlabel("Speed limit (km/h)")
     ax.set_ylabel("Density")
     fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "speed_distribution.pdf"))
-    # Speed distribution bar plot, weighted by length.
+    fig.savefig(os.path.join(graph_dir, "speed_limit_distribution.pdf"))
+    # Speed limit distribution bar plot, weighted by length.
     fig, ax = mpl.get_figure(fraction=0.8)
     bins = np.arange(
-        np.floor(gdf["speed"].min() / 5.0) * 5.0 - 2.5,
-        np.ceil(gdf["speed"].max() / 5.0) * 5.0 + 2.5 + 1.0,
+        np.floor(gdf["speed_limit"].min() / 5.0) * 5.0 - 2.5,
+        np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
         5.0,
     )
-    ax.hist(gdf["speed"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
+    ax.hist(gdf["speed_limit"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
     ax.set_xlabel("Speed limit (km/h)")
     ax.set_ylabel("Density (weighted by edge length)")
     fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "speed_distribution_length_weights.pdf"))
+    fig.savefig(os.path.join(graph_dir, "speed_limit_distribution_length_weights.pdf"))
     # Lanes distribution bar plot.
     fig, ax = mpl.get_figure(fraction=0.8)
     mask = ~gdf["lanes"].isna()
@@ -578,7 +578,7 @@ class EdgeReader(osmium.SimpleHandler):
                 "give_way_sign": has_target_give_way_sign,
                 "road_type": road_type,
                 "lanes": lanes,
-                "speed": speed,
+                "speed_limit": speed,
                 "source": source_id,
                 "target": target_id,
                 "osm_id": way.id,
@@ -597,7 +597,7 @@ class EdgeReader(osmium.SimpleHandler):
                     "give_way_sign": has_source_give_way_sign,
                     "road_type": road_type,
                     "lanes": back_lanes,
-                    "speed": back_speed,
+                    "speed_limit": back_speed,
                     "source": target_id,
                     "target": source_id,
                     "osm_id": way.id,
@@ -615,7 +615,7 @@ class EdgeReader(osmium.SimpleHandler):
             "source",
             "target",
             "length",
-            "speed",
+            "speed_limit",
             "lanes",
             "osm_id",
             "name",
