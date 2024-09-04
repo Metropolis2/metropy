@@ -8,13 +8,24 @@ import metropy.run.base as metro_run
 
 def generate_agents(trips: pl.LazyFrame):
     print("Creating agent-level DataFrame")
-    # Agent-level values: only `agent_id` is useful.
-    agents = trips.select(pl.col("agent_id").unique()).collect()
+    columns = trips.collect_schema().names()
+    if "tour_id" in columns:
+        id_col = "tour_id"
+    else:
+        assert "agent_id" in columns
+        id_col = "agent_id"
+    # Agent-level values: only the identifier is useful.
+    agents = trips.select(pl.col(id_col).alias("agent_id"), "is_truck").unique().collect()
+    assert not agents["agent_id"].has_nulls(), f"Found null values in column `{id_col}`"
+    assert agents["agent_id"].n_unique() == len(
+        agents
+    ), f"Column `{id_col}` is not unique over person and truck trips"
+    agents = agents.drop("is_truck")
 
     print("Creating alternative-level DataFrame")
     # Alternative-level values.
     alts = (
-        trips.group_by("agent_id")
+        trips.group_by(pl.col(id_col).alias("agent_id"))
         .agg(
             pl.lit(1).alias("alt_id"),
             pl.col("access_time").first().alias("origin_delay"),
@@ -23,11 +34,14 @@ def generate_agents(trips: pl.LazyFrame):
         )
         .collect()
     )
+    assert not alts[
+        "dt_choice.departure_time"
+    ].has_nulls(), "The departure time is null for some trips"
 
     print("Creating trip-level DataFrame")
     # Trip-level values.
     trips_df = trips.select(
-        pl.col("agent_id"),
+        pl.col(id_col).alias("agent_id"),
         pl.lit(1).alias("alt_id"),
         pl.col("trip_id"),
         # Stopping time is actual stopping time + egress time + access time of next trip.
@@ -45,21 +59,24 @@ def generate_agents(trips: pl.LazyFrame):
         .alias("class.type"),
         pl.when(pl.col("secondary_only"))
         .then(pl.col("free_flow_travel_time"))
-        .otherwise(pl.lit(None))
+        .otherwise(None)
         .alias("class.travel_time"),
         pl.when(pl.col("secondary_only"))
-        .then(pl.lit(None))
+        .then(None)
         .otherwise(pl.col("access_node"))
         .alias("class.origin"),
         pl.when(pl.col("secondary_only"))
-        .then(pl.lit(None))
+        .then(None)
         .otherwise(pl.col("egress_node"))
         .alias("class.destination"),
         pl.when(pl.col("secondary_only"))
-        .then(pl.lit(None))
-        .otherwise(pl.lit(1))
+        .then(None)
+        .otherwise(pl.when("is_truck").then(2).otherwise(1))
         .alias("class.vehicle"),
     ).collect()
+    assert trips_df.select(
+        (pl.col("class.origin").is_not_null() | pl.col("class.travel_time").is_not_null()).all()
+    ).item(), "The origin / destination is unknown for some trips"
 
     print(
         "Generated {:,} agents, with {:,} alternatives and {:,} trips ({:,} being road trips)".format(
@@ -70,9 +87,17 @@ def generate_agents(trips: pl.LazyFrame):
         )
     )
     nb_origins = trips_df["class.origin"].n_unique()
-    print("Number of unique origins: {}".format(nb_origins))
+    print("Number of unique origins: {:,}".format(nb_origins))
     nb_destinations = trips_df["class.destination"].n_unique()
-    print("Number of unique destinations: {}".format(nb_destinations))
+    print("Number of unique destinations: {:,}".format(nb_destinations))
+    nb_od_pairs = (
+        trips_df.lazy()
+        .unique(subset=["class.origin", "class.destination"])
+        .select(pl.len())
+        .collect()
+        .item()
+    )
+    print("Number of unique OD pairs: {:,}".format(nb_od_pairs))
     used_nodes = set(trips_df["class.origin"]).union(set(trips_df["class.destination"]))
     used_nodes.discard(None)
     return agents, alts, trips_df, used_nodes
@@ -120,12 +145,13 @@ if __name__ == "__main__":
     edges = metro_run.read_edges(
         config["clean_edges_file"],
         config.get("routing", dict).get("car_split", dict).get("main_edges_filename"),
-        config["edge_penalties_file"],
+        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
     )
     trips = metro_run.read_trips(
         config["population_directory"],
         config["routing"]["car_split"]["trips_filename"],
         config["run"]["period"],
+        car_only=True,
     )
 
     agents, alts, trips, used_nodes = generate_agents(trips)
@@ -133,7 +159,7 @@ if __name__ == "__main__":
     metro_run.write_agents(run_directory, agents, alts, trips)
 
     edges = metro_run.generate_edges(edges, config["run"])
-    vehicles = metro_run.generate_vehicles()
+    vehicles = metro_run.generate_vehicles(config["run"])
 
     all_nodes = set(edges["source"]).union(set(edges["target"]))
     if any(n not in all_nodes for n in used_nodes):

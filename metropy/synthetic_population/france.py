@@ -10,7 +10,7 @@ def save_households(directory: str, name: str, crs: str, output_dir: str):
     households = pl.scan_csv(
         os.path.join(directory, f"{name}_households.csv"),
         separator=";",
-        dtypes={
+        schema_overrides={
             "household_id": pl.UInt64,
             "number_of_vehicles": pl.UInt8,
             "number_of_bikes": pl.UInt8,
@@ -20,7 +20,7 @@ def save_households(directory: str, name: str, crs: str, output_dir: str):
     persons = pl.scan_csv(
         os.path.join(directory, f"{name}_persons.csv"),
         separator=";",
-        dtypes={"household_id": pl.UInt64},
+        schema_overrides={"household_id": pl.UInt64},
     )
     household_sizes = persons.group_by("household_id").agg(pl.len().alias("number_of_persons"))
     households = households.join(household_sizes, on="household_id", how="inner")
@@ -67,7 +67,7 @@ def save_persons(directory: str, name: str, output_dir: str):
     persons = pl.scan_csv(
         os.path.join(directory, f"{name}_persons.csv"),
         separator=";",
-        dtypes={
+        schema_overrides={
             "person_id": pl.UInt64,
             "household_id": pl.UInt64,
             "age": pl.UInt8,
@@ -97,12 +97,12 @@ def save_persons(directory: str, name: str, output_dir: str):
     persons.write_parquet(os.path.join(output_dir, "persons.parquet"))
 
 
-def save_trips(directory: str, name: str, crs: str, output_dir: str):
+def save_trips(directory: str, name: str, identify_tours: bool, crs: str, output_dir: str):
     print("Reading trips")
     trips = pl.scan_csv(
         os.path.join(directory, f"{name}_trips.csv"),
         separator=";",
-        dtypes={
+        schema_overrides={
             "person_id": pl.UInt64,
             "trip_index": pl.UInt64,
             "departure_time": pl.Float64,
@@ -124,6 +124,21 @@ def save_trips(directory: str, name: str, crs: str, output_dir: str):
     ).collect()
     n = len(trips)
     print(f"{n:,} trips collected")
+    if identify_tours:
+        # Filter out agents whose first trip is not from home and last trip is not to home.
+        trips = trips.filter(
+            pl.col("preceding_purpose").first().over("person_id") == "home",
+            pl.col("following_purpose").last().over("person_id") == "home",
+        )
+        m = n - len(trips)
+        if m > 0:
+            print(f"{m:,} trips were removed because the start / end activity is not \"home\"")
+        trips = trips.with_columns(
+            pl.when(pl.col("preceding_purpose") == "home").then(
+                pl.lit(1)
+            ).otherwise(None).cast(pl.UInt64).cum_count().alias("tour_id")
+        )
+        print("Number of tours: {:,}".format(trips["tour_id"].n_unique()))
     trips = trips.with_columns(pl.int_range(len(trips), dtype=pl.UInt64).alias("trip_id"))
     # Retrieve origin / destination coordinates.
     orig_df, dest_df = get_trip_coordinates(directory, name, crs, trips)
@@ -217,6 +232,7 @@ if __name__ == "__main__":
     check_keys(config, mandatory_keys)
     directory = config["synthetic_population"]["input_directory"]
     name = config["synthetic_population"]["name"]
+    identify_tours = config["synthetic_population"].get("identify_tours", False)
     output_dir = config["population_directory"]
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -224,6 +240,6 @@ if __name__ == "__main__":
     t0 = time.time()
     save_households(directory, name, config["crs"], output_dir)
     save_persons(directory, name, output_dir)
-    save_trips(directory, name, config["crs"], output_dir)
+    save_trips(directory, name, identify_tours, config["crs"], output_dir)
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))

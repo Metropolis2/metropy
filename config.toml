@@ -287,6 +287,9 @@ input_directory = "eqasim_output/"
 # Name of the generated synthetic population.
 # This is the prefix used in the output files.
 name = "ile_de_france"
+# If `true`, a `tour_id` column will be created with unique identifier for the home-to-home tours of the persons.
+# This will remove the persons who do not start or do not end at their home place.
+identify_tours = true
 
 [synthetic_population.french_vehicle_fleet]
 # Path to the CSV file with the French vehicle fleet data at the INSEE commune level.

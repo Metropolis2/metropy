@@ -41,22 +41,18 @@ def read_edges(
             "constant_travel_time" in columns
         ), "No column `additive_penalty` in the edges penalties file"
         if "speed" in columns:
-            # Drop the speed column and join to replace it with the penalty speed.
-            edges = (
-                edges.rename({"speed": "base_speed"})
-                .join(edges_penalties, on="edge_id", how="left")
-                .with_columns(
-                    pl.col("constant_travel_time").fill_null(pl.lit(0.0)),
-                    pl.col("speed").fill_null(pl.col("base_speed")),
-                )
+            edges = edges.join(edges_penalties, on="edge_id", how="left").with_columns(
+                pl.col("constant_travel_time").fill_null(pl.lit(0.0)),
+                pl.col("speed").fill_null(pl.col("speed_limit")),
             )
         else:
             print("Warning: no `speed` column in the edges penalties, using additive penalty only")
             edges = edges.join(edges_penalties, on="edge_id", how="left").with_columns(
                 pl.col("constant_travel_time").fill_null(pl.lit(0.0)),
+                pl.col("speed_limit").alias("speed"),
             )
     else:
-        edges = edges.with_columns(constant_travel_time=pl.lit(0.0))
+        edges = edges.with_columns(constant_travel_time=pl.lit(0.0), speed=pl.col("speed_limit"))
     return edges
 
 
@@ -69,6 +65,16 @@ def generate_vehicles(config: dict):
             "pce": config.get("car_pce", 1.0) / config.get("simulation_ratio", 1.0),
         },
     ]
+    if "truck_headway" in config and "truck_pce" in config:
+        truck = {
+            "vehicle_id": 2,
+            "headway": config["truck_headway"] / config.get("truck_simulation_ratio", 1.0),
+            "pce": config["truck_pce"] / config.get("truck_simulation_ratio", 1.0),
+        }
+        if "truck_speed_limit" in config:
+            truck["speed_function.type"] = "UpperBound"
+            truck["speed_function.upper_bound"] = config["truck_speed_limit"] / 3.6
+        vehicles.append(truck)
     vehicles = pl.DataFrame(vehicles)
     return vehicles
 
@@ -116,25 +122,43 @@ def generate_edges(edges: pl.LazyFrame, config: dict):
     return edges_df
 
 
-def read_trips(population_directory: str, car_split_filename: str, period: list[float]):
+def read_trips(
+    population_directory: str, car_split_filename: str, period: list[float], car_only=False
+):
     print("Reading trips")
-    trips = metro_io.scan_dataframe(os.path.join(population_directory, "trips.parquet")).rename(
-        {"person_id": "agent_id"}
+    trips = (
+        metro_io.scan_dataframe(os.path.join(population_directory, "trips.parquet"))
+        .rename({"person_id": "agent_id"})
+        .with_columns(is_truck=False)
     )
+    if car_only:
+        trip_modes = metro_io.scan_dataframe(
+            os.path.join(population_directory, "trip_modes.parquet")
+        ).filter(pl.col("mode") == "car_driver")
+        trips = trips.join(trip_modes, on="trip_id", how="semi")
+    truck_filename = os.path.join(population_directory, "truck_trips.parquet")
+    if os.path.isfile(truck_filename):
+        truck_trips = metro_io.scan_dataframe(truck_filename)
+        trips = pl.concat(
+            (trips, truck_trips.with_columns(is_truck=True)),
+            how="diagonal_relaxed",
+        )
     # Remove trips with origin = destination.
     trips = trips.filter(
         (pl.col("origin_lng") != pl.col("destination_lng"))
         | (pl.col("origin_lat") != pl.col("destination_lat"))
     )
     # Remove trips outside of the simulation period.
-    trips = trips.filter(pl.col("departure_time").is_between(period[0], period[1]))
+    # NOTE. The format below assume that times are repeat each 24h. So if the period is 6h to 25h,
+    # then all departure times that are smaller than 1h or larger than 6h, after modulo 24h, will be
+    # considered.
+    trips = trips.filter(
+        ((pl.col("departure_time") - period[0]) % (24.0 * 3600.0)).is_between(
+            0.0, period[1] - period[0]
+        )
+    )
     car_split = metro_io.scan_dataframe(car_split_filename)
     trips = trips.join(car_split, on="trip_id", how="left", coalesce=True)
-    trip_modes = metro_io.scan_dataframe(
-        os.path.join(population_directory, "trip_modes.parquet")
-    ).filter(pl.col("mode") == "car_driver")
-    trips = trips.join(trip_modes, on="trip_id", how="semi")
-    trips = trips.sort("agent_id")
     return trips
 
 
