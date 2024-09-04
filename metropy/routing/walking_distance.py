@@ -329,7 +329,9 @@ if __name__ == "__main__":
     trips, nodes = read_trips(config["population_directory"])
 
     edges = read_edges(
-        config["clean_walk_edges_file"], config["crs"], config.get("forbidden_road_types")
+        config["clean_walk_edges_file"],
+        config["crs"],
+        config["routing"]["walking"].get("forbidden_road_types"),
     )
 
     df = find_origin_destination_node(nodes, edges)

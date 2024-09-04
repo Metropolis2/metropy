@@ -23,8 +23,6 @@ raw_edges_file = "./output/road_network/edges_raw.parquet"
 # Path to the file where the imported edges of the road network are stored after the cleaning
 # process (possible extensions: parquet, geojson, fgb, shp).
 clean_edges_file = "./output/road_network/edges_clean.parquet"
-# Optional list of highway tags to be excluded from the list of potential origin / destination edges.
-forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
 # Path to the file where the imported edges of the walking road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -34,7 +32,7 @@ raw_walk_edges_file = "./output/road_network/edges_walk_raw.parquet"
 clean_walk_edges_file = "./output/road_network/edges_walk_clean.parquet"
 
 # Path to the directory where the population files are stored.
-population_directory = "./output/synthetic_population/"
+population_directory = "./output/synthetic_population_20pct/"
 
 [run]
 # Directory where the run files are stored.
@@ -43,6 +41,8 @@ directory = "./run/main/"
 format = "Parquet"
 # Ratio of population that is simulated.
 simulation_ratio = 0.2
+# Ratio of truck trips simulated.
+truck_simulation_ratio = 1.0
 # Simulation period.
 period = [10_800, 97_200]
 # Time interval between two breakpoints in the travel-time functions (in seconds).
@@ -62,6 +62,12 @@ routing_algorithm = "Intersect"
 car_headway = 8.0
 # PCE of car vehicles.
 car_pce = 1.0
+# Headway of truck vehicles.
+truck_headway = 16.0
+# PCE of truck vehicles.
+truck_pce = 2.0
+# Maximum speed for truck vehicles (in km/h).
+truck_speed_limit = 90.0
 # Whether vehicles are allowed to overtake vehicles pending to take a different outgoing edge.
 overtaking = true
 # Whether bottleneck congestion should be enabled (capacities must be specified).
@@ -567,6 +573,8 @@ output_filename = "./output/public_transit/chevelus.parquet"
 output_filename = "./output/routing/walking_distances.parquet"
 # Whether graphs of the variables should be saved.
 output_graphs = true
+# Optional list of highway tags to be excluded from the list of potential origin / destination edges.
+forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
 [routing.car_split]
 # List of road type values that should be part of the main road-network graph.
@@ -595,6 +603,10 @@ trips_filename = "./output/routing/car_split.parquet"
 main_edges_filename = "./output/road_network/edges_main.parquet"
 # Whether graphs of the variables should be saved.
 output_graphs = true
+# Optional list of highway tags to be excluded from the list of potential origin / destination edges.
+forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
+# Optional list of highway tags to be excluded from the list of potential origin / destination edges, for trucks.
+truck_forbidden_road_types = ["living_street", "residential"]
 
 [road_results.edge_values]
 # Path to the output file with the edge-level values

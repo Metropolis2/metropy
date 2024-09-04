@@ -238,7 +238,7 @@ if __name__ == "__main__":
     edges = read_edges(
         config["clean_edges_file"],
         config["crs"],
-        config.get("forbidden_road_types"),
+        config["routing"]["car_split"].get("forbidden_road_types"),
         config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
     )
 

@@ -1,0 +1,55 @@
+# Projected coordinate system to use for metric operations (e.g., computing edges' length).
+# See: https://en.wikipedia.org/wiki/Projected_coordinate_system
+crs = "EPSG:2154"
+
+# Random seed to be used for random number generators.
+random_seed = 13081996
+
+# Path to the file where the imported edges of the road network are stored after the cleaning
+# process (possible extensions: parquet, geojson, fgb, shp).
+clean_edges_file = "./output/road_network/edges_clean.parquet"
+
+# Path to the directory where the population files are stored.
+population_directory = "./output/trucks/"
+
+[od_matrix]
+# Path to the shapefile with the zoning geometries.
+# The file must have columns `zone_id` and `geometry`.
+zone_filename = "/home/ljavaudin/Projects/MetropolisZFE/data/zonage_modus/zones_modus.parquet"
+# Path to the OD matrix.
+# The file must have columns `origin`, `destination` and `count`.
+# Extensions: CSV, Parquet.
+od_matrix_filename = "/home/ljavaudin/Projects/MetropolisZFE/output/trucks/od_matrix.parquet"
+# Maximum number of unique edges that can be selected as origin / destination in each zone.
+# Comment to allow unlimited number of unique edges.
+max_nb_edges_per_zone = 10
+
+[od_matrix.weights.rural]
+motorway = 0
+trunk = 0
+motorway_link = 3
+trunk_link = 3
+primary = 3
+primary_link = 3
+secondary = 2
+secondary_link = 2
+tertiary = 1
+tertiary_link = 1
+unclassified = 1
+living_street = 0
+residential = 0
+
+[od_matrix.weights.urban]
+motorway = 0
+trunk = 0
+motorway_link = 3
+trunk_link = 3
+primary = 3
+primary_link = 3
+secondary = 2
+secondary_link = 2
+tertiary = 1
+tertiary_link = 1
+unclassified = 1
+living_street = 0
+residential = 0

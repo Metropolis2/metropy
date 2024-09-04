@@ -7,6 +7,7 @@ import gc
 
 import numpy as np
 import polars as pl
+import pandas as pd
 import geopandas as gpd
 import networkx as nx
 from shapely.geometry import Point
@@ -26,10 +27,12 @@ def read_trips(input_directory: str):
     df = pl.read_parquet(
         os.path.join(input_directory, "trips.parquet"),
         columns=columns,
-    )
+    ).with_columns(is_truck=pl.lit(False))
     truck_filename = os.path.join(input_directory, "truck_trips.parquet")
     if os.path.isfile(truck_filename):
-        truck_df = pl.read_parquet(truck_filename, columns=columns)
+        truck_df = pl.read_parquet(truck_filename, columns=columns).with_columns(
+            is_truck=pl.lit(True)
+        )
         df = pl.concat((df, truck_df), how="vertical")
         assert df["trip_id"].n_unique() == len(
             df
@@ -45,9 +48,13 @@ def read_trips(input_directory: str):
     # Create a DataFrame will all the unique (lng, lat) pairs.
     nodes = pl.concat(
         (
-            df.select(pl.col("origin_lng").alias("lng"), pl.col("origin_lat").alias("lat")),
             df.select(
-                pl.col("destination_lng").alias("lng"), pl.col("destination_lat").alias("lat")
+                pl.col("origin_lng").alias("lng"), pl.col("origin_lat").alias("lat"), "is_truck"
+            ),
+            df.select(
+                pl.col("destination_lng").alias("lng"),
+                pl.col("destination_lat").alias("lat"),
+                "is_truck",
             ),
         ),
         how="vertical",
@@ -59,9 +66,9 @@ def read_trips(input_directory: str):
 def read_edges(
     filename: str,
     crs: str,
-    forbidden_road_types: list | None,
+    config: dict,
     edge_penalties_filename: str | None,
-    main_road_types: list,
+    truck_speed_limit: float | None,
 ):
     print("Reading edges...")
     gdf = metro_io.read_geodataframe(
@@ -69,11 +76,15 @@ def read_edges(
         columns=["edge_id", "source", "target", "length", "speed_limit", "road_type", "geometry"],
     )
     gdf.to_crs(crs, inplace=True)
-    if forbidden_road_types is not None:
-        gdf["allow_od"] = ~gdf["road_type"].isin(forbidden_road_types)
+    if "forbidden_road_types" in config:
+        gdf["allow_od"] = ~gdf["road_type"].isin(config["forbidden_road_types"])
     else:
         gdf["allow_od"] = True
-    gdf["main"] = gdf["road_type"].isin(main_road_types)
+    if "truck_forbidden_road_types" in config:
+        gdf["allow_truck_od"] = ~gdf["road_type"].isin(config["truck_forbidden_road_types"])
+    else:
+        gdf["allow_truck_od"] = True
+    gdf["main"] = gdf["road_type"].isin(config["main_road_types"])
     if edge_penalties_filename is not None:
         penalties = metro_io.read_dataframe(edge_penalties_filename)
         if "speed" in penalties.columns:
@@ -85,9 +96,9 @@ def read_edges(
                     how="left",
                 )
             )
-            gdf["travel_time"] = gdf["length"] / (gdf["speed"] / 3.6)
+            gdf["travel_time_car"] = gdf["length"] / (gdf["speed"] / 3.6)
         else:
-            gdf["travel_time"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
+            gdf["travel_time_car"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
         if "additive_penalty" in penalties.columns:
             print("Using additive penalties")
             gdf = gpd.GeoDataFrame(
@@ -97,9 +108,12 @@ def read_edges(
                     how="left",
                 )
             )
-            gdf["travel_time"] += gdf["additive_penalty"].fillna(0.0)
+            gdf["travel_time_car"] += gdf["additive_penalty"].fillna(0.0)
     else:
-        gdf["travel_time"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
+        gdf["travel_time_car"] = gdf["length"] / (gdf["speed_limit"] / 3.6)
+    if not truck_speed_limit:
+        truck_speed_limit = np.inf
+    gdf["travel_time_truck"] = np.minimum(gdf["travel_time_car"], truck_speed_limit)
     return gdf
 
 
@@ -139,19 +153,28 @@ def find_origin_destination_node(nodes: pl.DataFrame, edges: gpd.GeoDataFrame):
     print("Creating origin / destination points...")
     # Create a GeoDataFrame of all the origin / destination nodes.
     gdf = gpd.GeoDataFrame(
-        data={"lng": nodes["lng"], "lat": nodes["lat"]},
+        data={"lng": nodes["lng"], "lat": nodes["lat"], "is_truck": nodes["is_truck"]},
         geometry=gpd.points_from_xy(nodes["lng"], nodes["lat"], crs="EPSG:4326"),
     )
     gdf.to_crs(edges.crs, inplace=True)
     print("Matching to the nearest edge...")
     # Match to the nearest edge.
-    gdf = gdf.sjoin_nearest(
-        edges.loc[edges["allow_od"], ["edge_id", "geometry", "source", "target"]],
-        distance_col="edge_dist",
-        how="left",
+    gdf = pd.concat(
+        (
+            gdf.loc[~gdf["is_truck"]].sjoin_nearest(
+                edges.loc[edges["allow_od"], ["edge_id", "geometry", "source", "target"]],
+                distance_col="edge_dist",
+                how="left",
+            ),
+            gdf.loc[gdf["is_truck"]].sjoin_nearest(
+                edges.loc[edges["allow_truck_od"], ["edge_id", "geometry", "source", "target"]],
+                distance_col="edge_dist",
+                how="left",
+            ),
+        )
     )
     # Duplicate indices occur when there are two edges at the same distance.
-    gdf.drop_duplicates(subset=["lng", "lat"], inplace=True)
+    gdf.drop_duplicates(subset=["lng", "lat", "is_truck"], inplace=True)
     print("Creating source / target points...")
     # Create source / target point of the edges.
     matched_edges = edges.loc[edges["edge_id"].isin(gdf["edge_id"]), ["edge_id", "geometry"]]
@@ -170,6 +193,7 @@ def find_origin_destination_node(nodes: pl.DataFrame, edges: gpd.GeoDataFrame):
             [
                 "lng",
                 "lat",
+                "is_truck",
                 "edge_id",
                 "edge_dist",
                 "source",
@@ -204,15 +228,21 @@ def find_origin_destination_node(nodes: pl.DataFrame, edges: gpd.GeoDataFrame):
         "node",
         "node_dist",
         "edge_dist",
+        "is_truck",
     )
     return df
 
 
 def add_od_to_trips(trips: pl.DataFrame, df: pl.DataFrame):
     print("Assigning origin / destination node to all trips...")
+    n = len(trips)
     lztrips = (
         trips.lazy()
-        .join(df.lazy(), left_on=["origin_lng", "origin_lat"], right_on=["lng", "lat"])
+        .join(
+            df.lazy(),
+            left_on=["origin_lng", "origin_lat", "is_truck"],
+            right_on=["lng", "lat", "is_truck"],
+        )
         .rename(
             {
                 "node": "origin_node",
@@ -223,7 +253,9 @@ def add_od_to_trips(trips: pl.DataFrame, df: pl.DataFrame):
     )
     trips = (
         lztrips.join(
-            df.lazy(), left_on=["destination_lng", "destination_lat"], right_on=["lng", "lat"]
+            df.lazy(),
+            left_on=["destination_lng", "destination_lat", "is_truck"],
+            right_on=["lng", "lat", "is_truck"],
         )
         .rename(
             {
@@ -234,6 +266,7 @@ def add_od_to_trips(trips: pl.DataFrame, df: pl.DataFrame):
         )
         .select(
             "trip_id",
+            "is_truck",
             "origin_node",
             "origin_node_dist",
             "origin_edge_dist",
@@ -243,11 +276,29 @@ def add_od_to_trips(trips: pl.DataFrame, df: pl.DataFrame):
         )
         .collect()
     )
+    assert len(trips) == n
     return trips
 
 
-def prepare_routing(trips: pl.DataFrame, edges: gpd.GeoDataFrame, tmp_directory: str):
-    print("Saving queries...")
+def run_routing(
+    trips: pl.DataFrame, edges: gpd.GeoDataFrame, routing_exec: str, tmp_directory: str
+):
+    if not trips["is_truck"].all():
+        parameters_filename = prepare_routing(
+            trips.filter(~pl.col("is_truck")), edges, tmp_directory, "car"
+        )
+        print("Running routing for car...")
+        subprocess.run(" ".join([routing_exec, parameters_filename]), shell=True)
+    if trips["is_truck"].any():
+        parameters_filename = prepare_routing(
+            trips.filter(pl.col("is_truck")), edges, tmp_directory, "truck"
+        )
+        print("Running routing for truck...")
+        subprocess.run(" ".join([routing_exec, parameters_filename]), shell=True)
+
+
+def prepare_routing(trips: pl.DataFrame, edges: gpd.GeoDataFrame, tmp_directory: str, suffix: str):
+    print(f"Saving queries for {suffix}...")
     queries = (
         trips.unique(subset=["origin_node", "destination_node"])
         .filter(pl.col("origin_node") != pl.col("destination_node"))
@@ -259,45 +310,68 @@ def prepare_routing(trips: pl.DataFrame, edges: gpd.GeoDataFrame, tmp_directory:
         )
     )
     print(f"Number of unique origin-destination pairs: {len(queries):,}")
-    queries.write_parquet(os.path.join(tmp_directory, "queries.parquet"))
+    queries.write_parquet(os.path.join(tmp_directory, f"queries_{suffix}.parquet"))
     print("Saving graph...")
-    edges_df = pl.from_pandas(edges.loc[:, ["edge_id", "source", "target", "travel_time", "main"]])
+    edges_df = pl.from_pandas(
+        edges.loc[:, ["edge_id", "source", "target", f"travel_time_{suffix}", "main"]]
+    )
     # Parallel edges are removed, keeping in priority edges of the main graph and with smallest
     # travel time.
-    edges_df.sort(["main", "travel_time"], descending=[True, False]).unique(
+    edges_df.sort(["main", f"travel_time_{suffix}"], descending=[True, False]).unique(
         subset=["source", "target"], keep="first"
-    ).sort("edge_id").select("edge_id", "source", "target", "travel_time").write_parquet(
-        os.path.join(tmp_directory, "edges.parquet")
+    ).rename({f"travel_time_{suffix}": "travel_time"}).sort("edge_id").select(
+        "edge_id", "source", "target", "travel_time"
+    ).write_parquet(
+        os.path.join(tmp_directory, f"edges_{suffix}.parquet")
     )
     print("Saving parameters...")
     parameters = {
         "algorithm": "TCH",
         "output_route": True,
         "input_files": {
-            "queries": "queries.parquet",
-            "edges": "edges.parquet",
+            "queries": f"queries_{suffix}.parquet",
+            "edges": f"edges_{suffix}.parquet",
         },
-        "output_directory": "output",
+        "output_directory": f"output_{suffix}",
         "saving_format": "Parquet",
     }
-    with open(os.path.join(tmp_directory, "parameters.json"), "w") as f:
+    parameters_filename = os.path.join(tmp_directory, f"parameters_{suffix}.json")
+    with open(parameters_filename, "w") as f:
         json.dump(parameters, f)
-
-
-def run_routing(routing_exec: str, tmp_directory: str):
-    parameters_filename = os.path.join(tmp_directory, "parameters.json")
-    print("Running routing...")
-    subprocess.run(" ".join([routing_exec, parameters_filename]), shell=True)
+    return parameters_filename
 
 
 def load_results(tmp_directory: str):
-    print("Reading routing results...")
-    return pl.read_parquet(os.path.join(tmp_directory, "output", "ea_results.parquet"))
+    results = pl.DataFrame()
+    car_filename = os.path.join(tmp_directory, "output_car", "ea_results.parquet")
+    if os.path.isfile(car_filename):
+        print("Reading routing results for car...")
+        results = pl.read_parquet(car_filename).with_columns(is_truck=pl.lit(False))
+    truck_filename = os.path.join(tmp_directory, "output_truck", "ea_results.parquet")
+    if os.path.isfile(truck_filename):
+        print("Reading routing results for truck...")
+        results = pl.concat(
+            (results, pl.read_parquet(truck_filename).with_columns(is_truck=pl.lit(True))),
+            how="vertical",
+        )
+    assert not results.is_empty()
+    return results
 
 
 def edges_to_polars(edges_gdf: gpd.GeoDataFrame):
     edges = pl.from_pandas(
-        edges_gdf.loc[:, ["edge_id", "source", "target", "travel_time", "length", "main"]],
+        edges_gdf.loc[
+            :,
+            [
+                "edge_id",
+                "source",
+                "target",
+                "travel_time_car",
+                "travel_time_truck",
+                "length",
+                "main",
+            ],
+        ],
         schema_overrides={"edge_id": pl.UInt64, "source": pl.UInt64, "target": pl.UInt64},
     )
     return edges
@@ -414,21 +488,45 @@ def find_connections(results: pl.DataFrame, edges: pl.DataFrame, main_edges: set
             .list.get(pl.col("last_idx_main") - 1)
             .replace_strict(edges["edge_id"], edges["target"], return_dtype=pl.UInt64)
             .alias("egress_node"),
-            pl.col("access_part")
-            .list.eval(
-                pl.element().replace_strict(
-                    edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64
+            pl.when("is_truck")
+            .then(
+                pl.col("access_part")
+                .list.eval(
+                    pl.element().replace_strict(
+                        edges["edge_id"], edges["travel_time_truck"], return_dtype=pl.UInt64
+                    )
                 )
+                .list.sum()
             )
-            .list.sum()
+            .otherwise(
+                pl.col("access_part")
+                .list.eval(
+                    pl.element().replace_strict(
+                        edges["edge_id"], edges["travel_time_car"], return_dtype=pl.UInt64
+                    )
+                )
+                .list.sum()
+            )
             .alias("access_time"),
-            pl.col("egress_part")
-            .list.eval(
-                pl.element().replace_strict(
-                    edges["edge_id"], edges["travel_time"], return_dtype=pl.UInt64
+            pl.when("is_truck")
+            .then(
+                pl.col("egress_part")
+                .list.eval(
+                    pl.element().replace_strict(
+                        edges["edge_id"], edges["travel_time_truck"], return_dtype=pl.UInt64
+                    )
                 )
+                .list.sum()
             )
-            .list.sum()
+            .otherwise(
+                pl.col("egress_part")
+                .list.eval(
+                    pl.element().replace_strict(
+                        edges["edge_id"], edges["travel_time_car"], return_dtype=pl.UInt64
+                    )
+                )
+                .list.sum()
+            )
             .alias("egress_time"),
         )
         .select(
@@ -440,12 +538,19 @@ def find_connections(results: pl.DataFrame, edges: pl.DataFrame, main_edges: set
             "access_time",
             "egress_time",
             "destination_node",
+            "route",
             "free_flow_travel_time",
             "secondary_only",
+            "is_truck",
         )
     )
     results_secondary = lazy_results.filter(pl.col("secondary_only")).select(
-        "route", "origin_node", "destination_node", "free_flow_travel_time", "secondary_only"
+        "route",
+        "origin_node",
+        "destination_node",
+        "free_flow_travel_time",
+        "secondary_only",
+        "is_truck",
     )
     # TODO: save edges with count and main columns.
     results = pl.concat((results_main.collect(), results_secondary.collect()), how="diagonal")
@@ -456,7 +561,12 @@ def merge(trips: pl.DataFrame, results: pl.DataFrame):
     print("Merging trips data...")
     trips = (
         trips.lazy()
-        .join(results.lazy(), on=["origin_node", "destination_node"], how="left", coalesce=False)
+        .join(
+            results.lazy(),
+            on=["origin_node", "destination_node", "is_truck"],
+            how="left",
+            coalesce=False,
+        )
         .with_columns(
             pl.col("free_flow_travel_time").fill_null(0.0), pl.col("secondary_only").fill_null(True)
         )
@@ -477,6 +587,7 @@ def merge(trips: pl.DataFrame, results: pl.DataFrame):
             "free_flow_travel_time",
             "route",
             "secondary_only",
+            "is_truck",
         )
         .collect()
     )
@@ -626,9 +737,9 @@ if __name__ == "__main__":
     edges = read_edges(
         config["clean_edges_file"],
         config["crs"],
-        config.get("forbidden_road_types"),
+        config["routing"]["car_split"],
         config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
-        config["routing"]["car_split"]["main_road_types"],
+        config.get("run", dict).get("truck_speed_limit"),
     )
 
     df = find_origin_destination_node(nodes, edges)
@@ -639,9 +750,7 @@ if __name__ == "__main__":
 
     edges_df = process_edges(edges_df)
 
-    prepare_routing(trips, edges, config["tmp_directory"])
-
-    run_routing(config["routing_exec"], config["tmp_directory"])
+    run_routing(trips, edges, config["routing_exec"], config["tmp_directory"])
 
     results = load_results(config["tmp_directory"])
 
