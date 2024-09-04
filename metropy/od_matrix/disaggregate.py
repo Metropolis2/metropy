@@ -5,6 +5,7 @@ from collections import defaultdict
 import numpy as np
 import polars as pl
 import geopandas as gpd
+from shapely.geometry import Point
 
 import metropy.utils.io as metro_io
 
@@ -65,11 +66,31 @@ def match_edges_with_zones(edges: gpd.GeoDataFrame, zones: gpd.GeoDataFrame):
     if n1 < n0:
         print(f"{n0 - n1:,} edges are not part of any zone")
     print("Computing length of edges in the matched zones...")
+    zones.set_index("zone_id", inplace=True)
     edges["matched_length"] = edges.geometry.intersection(
-        zones.set_index("zone_id").loc[edges["zone_id"]], align=False
+        zones.loc[edges.loc[:, "zone_id"]], align=False
     ).length
+    print("Flagging source / target in zones...")
+    # Node geometries.
+    zone_ids = edges.loc[:, "zone_id"]
+    source_points = edges.geometry.apply(lambda g: Point(g.coords[0])).set_crs(edges.crs)
+    edges["source_in_zone"] = source_points.within(zones.loc[zone_ids].geometry, align=False)
+    target_points = edges.geometry.apply(lambda g: Point(g.coords[-1])).set_crs(edges.crs)
+    edges["target_in_zone"] = target_points.within(zones.loc[zone_ids].geometry, align=False)
     df = pl.from_pandas(
-        edges.loc[:, ["edge_id", "source", "target", "weight", "zone_id", "matched_length"]],
+        edges.loc[
+            :,
+            [
+                "edge_id",
+                "source",
+                "target",
+                "weight",
+                "zone_id",
+                "matched_length",
+                "source_in_zone",
+                "target_in_zone",
+            ],
+        ],
         schema_overrides={
             "edge_id": pl.UInt64,
             "source": pl.UInt64,
@@ -77,8 +98,11 @@ def match_edges_with_zones(edges: gpd.GeoDataFrame, zones: gpd.GeoDataFrame):
             "weight": pl.Float64,
             "zone_id": pl.UInt64,
             "matched_length": pl.Float64,
+            "source_in_zone": pl.Boolean,
+            "target_in_zone": pl.Boolean,
         },
     )
+    df = df.filter(pl.col("source_in_zone") | pl.col("target_in_zone"))
     return df
 
 
@@ -92,8 +116,8 @@ def generate_origin_destination(
     df: pl.DataFrame, od_matrix: pl.DataFrame, config: dict, random_seed=None
 ):
     rng = np.random.default_rng(random_seed)
-    if "max_nb_nodes_per_zone" in config:
-        m: int = config["max_nb_nodes_per_zone"]
+    if "max_nb_edges_per_zone" in config:
+        m: int = config["max_nb_edges_per_zone"]
     else:
         m = len(df) + 1
     # Compute edge probability by zone.
@@ -107,7 +131,7 @@ def generate_origin_destination(
     )
     matched_zones = set(df["zone_id"])
     zone_edges = (
-        df.select("zone_id", "source", "target", "prob")
+        df.select("zone_id", "source", "target", "prob", "source_in_zone", "target_in_zone")
         .filter(pl.col("prob") > 0.0)
         .partition_by(["zone_id"], as_dict=True)
     )
@@ -138,7 +162,7 @@ def generate_origin_destination(
     for zone_id, count in zip(origin_counts["origin"], origin_counts["count"]):
         zone_df = zone_edges[(zone_id,)]
         if len(zone_df) > m and count > m:
-            # Randomly select `m` candidate nodes to be selected.
+            # Randomly select `m` candidate edges to be selected.
             idx = rng.choice(
                 len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=m, replace=False
             )
@@ -146,14 +170,22 @@ def generate_origin_destination(
         edges = rng.choice(len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=count)
         # For first half, we use source, for the other half, we use target.
         n = count // 2
-        origins[zone_id] = pl.concat((zone_df["source"][edges[:n]], zone_df["target"][edges[n:]]))
+        use_source = np.repeat(False, count)
+        use_source[:n] = True
+        # When source is not in zone, use target.
+        use_source[~zone_df["source_in_zone"][edges]] = False
+        # When target is not in zone, use source.
+        use_source[~zone_df["target_in_zone"][edges]] = True
+        origins[zone_id] = pl.concat(
+            (zone_df["source"][edges[use_source]], zone_df["target"][edges[~use_source]])
+        )
     print("Drawing destinations...")
     destination_counts = od_matrix.group_by("destination").agg(pl.col("count").sum())
     destinations = dict()
     for zone_id, count in zip(destination_counts["destination"], destination_counts["count"]):
         zone_df = zone_edges[(zone_id,)]
         if len(zone_df) > m and count > m:
-            # Randomly select `m` candidate nodes to be selected.
+            # Randomly select `m` candidate edges to be selected.
             idx = rng.choice(
                 len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=m, replace=False
             )
@@ -161,8 +193,14 @@ def generate_origin_destination(
         edges = rng.choice(len(zone_df), p=zone_df["prob"] / zone_df["prob"].sum(), size=count)
         # For first half, we use source, for the other half, we use target.
         n = count // 2
+        use_source = np.repeat(False, count)
+        use_source[:n] = True
+        # When source is not in zone, use target.
+        use_source[~zone_df["source_in_zone"][edges]] = False
+        # When target is not in zone, use source.
+        use_source[~zone_df["target_in_zone"][edges]] = True
         destinations[zone_id] = pl.concat(
-            (zone_df["source"][edges[:n]], zone_df["target"][edges[n:]])
+            (zone_df["source"][edges[use_source]], zone_df["target"][edges[~use_source]])
         )
     print("Generating trips...")
     origins_i = defaultdict(lambda: 0)
