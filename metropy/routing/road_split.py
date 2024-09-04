@@ -721,9 +721,9 @@ if __name__ == "__main__":
         "crs",
         "routing_exec",
         "tmp_directory",
-        "routing.car_split.main_road_types",
-        "routing.car_split.trips_filename",
-        "routing.car_split.main_edges_filename",
+        "routing.road_split.main_road_types",
+        "routing.road_split.trips_filename",
+        "routing.road_split.main_edges_filename",
     ]
     check_keys(config, mandatory_keys)
 
@@ -737,7 +737,7 @@ if __name__ == "__main__":
     edges = read_edges(
         config["clean_edges_file"],
         config["crs"],
-        config["routing"]["car_split"],
+        config["routing"]["road_split"],
         config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
         config.get("run", dict).get("truck_speed_limit"),
     )
@@ -764,18 +764,18 @@ if __name__ == "__main__":
 
     metro_io.save_dataframe(
         df,
-        config["routing"]["car_split"]["trips_filename"],
+        config["routing"]["road_split"]["trips_filename"],
     )
 
     metro_io.save_dataframe(
         main_edges_df,
-        config["routing"]["car_split"]["main_edges_filename"],
+        config["routing"]["road_split"]["main_edges_filename"],
     )
 
-    if config["routing"]["car_split"].get("output_graphs", False):
+    if config["routing"]["road_split"].get("output_graphs", False):
         if "graph_directory" not in config:
             raise Exception("Missing key `graph_directory` in config")
-        graph_dir = os.path.join(config["graph_directory"], "routing.car_split")
+        graph_dir = os.path.join(config["graph_directory"], "routing.road_split")
         plot_variables(df, graph_dir)
 
     # Clean the temporary directory.

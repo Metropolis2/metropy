@@ -50,11 +50,11 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Predict mode choice for the synthetic population: `metropy.synthetic_population.predict_modes`
 - Plotting a household from the synthetic population: `metropy.synthetic_population.plot_household`
 - Generating a population from an origin-destination matrix: `metropy.od_matrix.disaggregate`
-- Splitting road network in main and secondary parts: `metropy.routing.car_split`
+- Splitting road network in main and secondary parts: `metropy.routing.road_split`
 - Walking distance computation: `metropy.routing.walking_distance`
 - Public-transit routing with [OpenTripPlanner](http://www.opentripplanner.org/):
   `metropy.routing.opentripplanner`
-- Run a simulation with only the car trips: `metropy.run.car_only`
+- Run a simulation with only the road trips: `metropy.run.road_only`
 - Run a simulation to retrieve the travel time of the TomTom requests from the results of a
   simulation: `metropy.run.tomtom_routes`
 - Compute stop-to-stop public-transit flows: `metropy.public_transit.analyze_flows`

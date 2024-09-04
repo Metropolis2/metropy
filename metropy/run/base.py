@@ -123,7 +123,7 @@ def generate_edges(edges: pl.LazyFrame, config: dict):
 
 
 def read_trips(
-    population_directory: str, car_split_filename: str, period: list[float], car_only=False
+    population_directory: str, road_split_filename: str, period: list[float], road_only=False
 ):
     print("Reading trips")
     trips = (
@@ -131,7 +131,7 @@ def read_trips(
         .rename({"person_id": "agent_id"})
         .with_columns(is_truck=False)
     )
-    if car_only:
+    if road_only:
         trip_modes = metro_io.scan_dataframe(
             os.path.join(population_directory, "trip_modes.parquet")
         ).filter(pl.col("mode") == "car_driver")
@@ -157,8 +157,8 @@ def read_trips(
             0.0, period[1] - period[0]
         )
     )
-    car_split = metro_io.scan_dataframe(car_split_filename)
-    trips = trips.join(car_split, on="trip_id", how="left", coalesce=True)
+    road_split = metro_io.scan_dataframe(road_split_filename)
+    trips = trips.join(road_split, on="trip_id", how="left", coalesce=True)
     return trips
 
 

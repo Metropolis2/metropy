@@ -94,7 +94,7 @@ def clean(lf: pl.LazyFrame, config: dict):
     # Kilometers traveled since departure.
     lf = lf.with_columns(
         pl.col("length")
-        .cumsum()
+        .cum_sum()
         .shift(1)
         .fill_null(0.0)
         .over("agent_id", "trip_id")
@@ -143,7 +143,7 @@ def scan_emission_factors(config: dict):
     df = (
         lf.select("car_type", "pollutant", "hot", "speed_cat", "factor")
         .collect()
-        .pivot(index=["car_type", "hot", "speed_cat"], columns="pollutant", values="factor")
+        .pivot(on="pollutant", index=["car_type", "hot", "speed_cat"], values="factor")
     )
     return df
 
@@ -233,8 +233,8 @@ if __name__ == "__main__":
 
     t0 = time.time()
 
-    if "car_split" in config:
-        route_filename = config["car_split"]["output_directory"]
+    if "road_split" in config:
+        route_filename = config["road_split"]["output_directory"]
     else:
         route_filename = config["metropolis"]["output_directory"]
 

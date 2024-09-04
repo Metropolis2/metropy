@@ -15,7 +15,7 @@ routing_exec = "./execs/routing_cli"
 tmp_directory = "./tmp/"
 
 # Directory where the run input / output are stored.
-run_directory = "./run/car_only"
+run_directory = "./run/road_only"
 
 # Path to the file where the imported edges of the road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -91,9 +91,9 @@ residential = 600
 #road = 300
 #service = 300
 
-[run.car_only]
-# Directory where the files for the car-only run are stored.
-directory = "./run/car_only/"
+[run.road_only]
+# Directory where the files for the road-only run are stored.
+directory = "./run/road_only/"
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
 smoothing_factor = 0.02
 # Number of iterations to run.
@@ -579,7 +579,7 @@ output_graphs = true
 # Optional list of highway tags to be excluded from the list of potential origin / destination edges.
 forbidden_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
-[routing.car_split]
+[routing.road_split]
 # List of road type values that should be part of the main road-network graph.
 main_road_types = [
   "motorway",
@@ -598,9 +598,9 @@ main_road_types = [
   # "road",
   # "service",
 ]
-# Path to the output file where the car trip details are stored
+# Path to the output file where the road split details are stored
 # (possible extensions: Parquet, CSV).
-trips_filename = "./output/routing/car_split.parquet"
+trips_filename = "./output/routing/road_split.parquet"
 # Path to the output file where the main status of edges is sorted
 # (possible extensions: Parquet, CSV).
 main_edges_filename = "./output/road_network/edges_main.parquet"

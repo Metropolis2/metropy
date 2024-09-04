@@ -105,8 +105,8 @@ def generate_agents(trips: pl.LazyFrame):
 
 def write_parameters(run_directory: str, config: dict):
     parameters = metro_run.PARAMETERS.copy()
-    parameters["learning_model"]["value"] = config["car_only"]["smoothing_factor"]
-    parameters["max_iterations"] = config["car_only"]["nb_iterations"]
+    parameters["learning_model"]["value"] = config["road_only"]["smoothing_factor"]
+    parameters["max_iterations"] = config["road_only"]["nb_iterations"]
     parameters["period"] = config["period"]
     parameters["road_network"]["recording_interval"] = config["recording_interval"]
     parameters["road_network"]["spillback"] = config["spillback"]
@@ -132,26 +132,26 @@ if __name__ == "__main__":
         "run.spillback",
         "run.max_pending_duration",
         "run.routing_algorithm",
-        "run.car_only.directory",
-        "run.car_only.smoothing_factor",
-        "run.car_only.nb_iterations",
+        "run.road_only.directory",
+        "run.road_only.smoothing_factor",
+        "run.road_only.nb_iterations",
     ]
     check_keys(config, mandatory_keys)
 
-    run_directory = config["run"]["car_only"]["directory"]
+    run_directory = config["run"]["road_only"]["directory"]
     if not os.path.isdir(os.path.join(run_directory, "input")):
         os.makedirs(os.path.join(run_directory, "input"))
 
     edges = metro_run.read_edges(
         config["clean_edges_file"],
-        config.get("routing", dict).get("car_split", dict).get("main_edges_filename"),
+        config.get("routing", dict).get("road_split", dict).get("main_edges_filename"),
         config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
     )
     trips = metro_run.read_trips(
         config["population_directory"],
-        config["routing"]["car_split"]["trips_filename"],
+        config["routing"]["road_split"]["trips_filename"],
         config["run"]["period"],
-        car_only=True,
+        road_only=True,
     )
 
     agents, alts, trips, used_nodes = generate_agents(trips)
