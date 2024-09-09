@@ -42,6 +42,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Map matching of routing results to the road network: `metropy.calibration.map_matching`
 - Post-processing for the map matching results: `metropy.calibration.post_map_matching`
 - Free-flow travel time calibration: `metropy.calibration.free_flow_calibration.py`
+- Edge capacities calibration: `metropy.calibration.capacities_calibration.py`
 - [France synthetic population](https://github.com/eqasim-org/ile-de-france) import:
   `metropy.synthetic_population.france`
 - Generating vehicles for the population from French vehicle fleet data:

@@ -23,6 +23,8 @@ raw_edges_file = "./output/road_network/edges_raw.parquet"
 # Path to the file where the imported edges of the road network are stored after the cleaning
 # process (possible extensions: parquet, geojson, fgb, shp).
 clean_edges_file = "./output/road_network/edges_clean.parquet"
+# Path to the file with edges' capacities.
+capacities_filename = "./output/road_network/edges_capacities.parquet"
 
 # Path to the file where the imported edges of the walking road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -33,6 +35,24 @@ clean_walk_edges_file = "./output/road_network/edges_walk_clean.parquet"
 
 # Path to the directory where the population files are stored.
 population_directory = "./output/synthetic_population_20pct/"
+
+[default_edge_capacities]
+# Bottleneck capacity per roadtype, in PCE/h.
+motorway = 2000
+trunk = 2000
+primary = 2000
+secondary = 2000
+tertiary = 2000
+motorway_link = 2000
+trunk_link = 2000
+primary_link = 2000
+secondary_link = 2000
+tertiary_link = 2000
+living_street = 2000
+unclassified = 2000
+residential = 2000
+#road = 300
+#service = 300
 
 [run]
 # Directory where the run files are stored.
@@ -71,33 +91,17 @@ truck_speed_limit = 90.0
 # Whether vehicles are allowed to overtake vehicles pending to take a different outgoing edge.
 overtaking = true
 # Whether bottleneck congestion should be enabled (capacities must be specified).
-bottleneck = true
-
-[run.edge_capacity]
-# Bottleneck capacity per roadtype, in PCE/h.
-motorway = 2000
-trunk = 2000
-primary = 1500
-secondary = 800
-tertiary = 600
-motorway_link = 1500
-trunk_link = 1500
-primary_link = 1500
-secondary_link = 800
-tertiary_link = 600
-living_street = 300
-unclassified = 600
-residential = 600
-#road = 300
-#service = 300
+use_bottleneck = true
 
 [run.road_only]
 # Directory where the files for the road-only run are stored.
-directory = "./run/road_only/"
+directory = "./run/road_only2/"
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
 smoothing_factor = 0.02
 # Number of iterations to run.
-nb_iterations = 100
+nb_iterations = 20
+# If `true`, the network conditions from the previous run are used.
+reuse_net_cond = true
 
 [run.tomtom_routes]
 # Directory where the files for the TomTom-routes run are stored.
@@ -511,15 +515,16 @@ global_speed_upper_bound = 140
 
 [calibration.capacities_calibration]
 # List of variables to be used in the regression.
-# explanatory_variables = ["road_type", "speed_limit", "urban", "roundabout", "traffic_signals", "stop_sign", "give_way_sign", "lanes", "target_incomings", "target_outgoings", "source_incomings", "source_outgoings"]
-# explanatory_variables = ["road_type", "speed_limit", "roundabout", "lanes", "source_incomings"]
-explanatory_variables = ["traffic_signals"]
+explanatory_variables = ["road_type", "roundabout", "traffic_signals", "lanes"]
+# explanatory_variables = ["road_type", "traffic_signals"]
 # List of interaction variables to be used in the regression.
 # interaction_variables = [["road_type", "speed_limit"], ["urban", "speed_limit"]]
 # interaction_variables = [["road_type", "traffic_signals"]]
 interaction_variables = []
 # List of alpha penalties to try in the LASSO regression.
 # alphas = [5, 10, 100, 200, 500]
+# Maximum capacity (in PCE / h) that is allowed on edges.
+maximum_capacity = 2000
 
 [travel_survey]
 # Path to the directory where the travel survey is stored.
@@ -527,6 +532,14 @@ directory = "./data/travel_survey/egt/"
 # Type of travel survey.
 # Possible values: "EGT".
 survey_type = "EGT"
+
+[travel_survey.desired_times]
+# Path to the file with the probabilities of desired start time and duration for work activities.
+desired_work_times_filename = "./output/travel_survey/desired_work_times.parquet"
+
+[travel_survey.departure_time_distribution]
+# Path to the file with the departure time distributions.
+output_filename = "./output/travel_survey/departure_time_distributions.parquet"
 
 [routing.opentripplanner]
 # Base URL of the OpenTripPlanner server instance.

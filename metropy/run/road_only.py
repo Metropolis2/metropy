@@ -44,11 +44,9 @@ def generate_agents(trips: pl.LazyFrame):
         pl.col(id_col).alias("agent_id"),
         pl.lit(1).alias("alt_id"),
         pl.col("trip_id"),
-        # Stopping time is actual stopping time + egress time + access time of next trip.
+        # Stopping time is activity time + egress time + access time of next trip.
         (
-            (
-                pl.col("departure_time").shift(-1).over("agent_id") - pl.col("arrival_time")
-            ).fill_null(0.0)
+            pl.col("activity_time")
             + pl.col("egress_time")
             + (pl.col("access_time").shift(-1, fill_value=0.0).over("agent_id"))
         ).alias("stopping_time"),
@@ -103,7 +101,7 @@ def generate_agents(trips: pl.LazyFrame):
     return agents, alts, trips_df, used_nodes
 
 
-def write_parameters(run_directory: str, config: dict):
+def write_parameters(run_directory: str, config: dict, reuse_net_cond: bool):
     parameters = metro_run.PARAMETERS.copy()
     parameters["learning_model"]["value"] = config["road_only"]["smoothing_factor"]
     parameters["max_iterations"] = config["road_only"]["nb_iterations"]
@@ -114,6 +112,10 @@ def write_parameters(run_directory: str, config: dict):
     if "backward_wave_speed" in config:
         parameters["road_network"]["backward_wave_speed"] = config["backward_wave_speed"]
     parameters["road_network"]["algorithm_type"] = config["routing_algorithm"]
+    if reuse_net_cond:
+        parameters["input_files"]["road_network_conditions"] = os.path.join(
+            run_directory, "output", "net_cond_sim_edge_ttfs.parquet"
+        )
     print("Writing parameters")
     with open(os.path.join(run_directory, "parameters.json"), "w") as f:
         f.write(json.dumps(parameters))
@@ -126,7 +128,6 @@ if __name__ == "__main__":
     mandatory_keys = [
         "clean_edges_file",
         "population_directory",
-        "run.edge_capacity",
         "run.period",
         "run.recording_interval",
         "run.spillback",
@@ -146,6 +147,7 @@ if __name__ == "__main__":
         config["clean_edges_file"],
         config.get("routing", dict).get("road_split", dict).get("main_edges_filename"),
         config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("capacities_filename"),
     )
     trips = metro_run.read_trips(
         config["population_directory"],
@@ -169,4 +171,6 @@ if __name__ == "__main__":
 
     metro_run.write_road_network(run_directory, edges, vehicles)
 
-    write_parameters(run_directory, config["run"])
+    write_parameters(
+        run_directory, config["run"], config["run"]["road_only"].get("reuse_net_cond", False)
+    )

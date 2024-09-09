@@ -25,7 +25,10 @@ PARAMETERS = {
 
 
 def read_edges(
-    edge_filename: str, edge_main_filename: None | str, edge_penalties_filename: None | str
+    edge_filename: str,
+    edge_main_filename: None | str,
+    edge_penalties_filename: None | str,
+    edge_capacities_filename: None | str,
 ):
     print("Reading edges")
     edges = metro_io.scan_dataframe(edge_filename)
@@ -53,6 +56,11 @@ def read_edges(
             )
     else:
         edges = edges.with_columns(constant_travel_time=pl.lit(0.0), speed=pl.col("speed_limit"))
+    if edge_capacities_filename is not None:
+        edge_capacities = metro_io.scan_dataframe(edge_capacities_filename).select(
+            "edge_id", "capacity"
+        )
+        edges = edges.join(edge_capacities, on="edge_id", how="left")
     return edges
 
 
@@ -97,15 +105,7 @@ def generate_edges(edges: pl.LazyFrame, config: dict):
     sort_columns = ["lanes", "speed", "length"]
     sort_descending = [True, True, False]
     if config.get("use_bottleneck", False):
-        assert isinstance(
-            config["edge_capacity"], dict
-        ), "Edge capacities must be specified when `use_bottleneck=true`."
-        edges = edges.with_columns(
-            bottleneck_flow=pl.col("road_type").replace_strict(
-                config["edge_capacity"], return_dtype=pl.Float64
-            )
-            / 3600
-        )
+        edges = edges.with_columns(bottleneck_flow=pl.col("capacity") / 3600)
         columns.append("bottleneck_flow")
         sort_columns.insert(0, "bottleneck_flow")
         sort_descending.insert(0, True)
@@ -157,6 +157,13 @@ def read_trips(
             0.0, period[1] - period[0]
         )
     )
+    # Compute time of the following activity.
+    trips = trips.with_columns(
+        (pl.col("departure_time").shift(-1).over("agent_id") - pl.col("arrival_time"))
+        .fill_null(0.0)
+        .alias("activity_time")
+    )
+    # Add road split (origin, destination, free-flow time, etc.).
     road_split = metro_io.scan_dataframe(road_split_filename)
     trips = trips.join(road_split, on="trip_id", how="left", coalesce=True)
     return trips

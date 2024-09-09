@@ -42,28 +42,6 @@ def read_tomtom_paths(input_file: str, edges: pl.DataFrame, period: list[float])
     return df
 
 
-def read_trips(population_directory: str, car_split_filename: str, period: list[float]):
-    print("Reading trips")
-    trips = metro_io.scan_dataframe(os.path.join(population_directory, "trips.parquet")).rename(
-        {"person_id": "agent_id"}
-    )
-    # Remove trips with origin = destination.
-    trips = trips.filter(
-        (pl.col("origin_lng") != pl.col("destination_lng"))
-        | (pl.col("origin_lat") != pl.col("destination_lat"))
-    )
-    # Remove trips outside of the simulation period.
-    trips = trips.filter(pl.col("departure_time").is_between(period[0], period[1]))
-    car_split = metro_io.scan_dataframe(car_split_filename)
-    trips = trips.join(car_split, on="trip_id", how="left", coalesce=True)
-    trip_modes = metro_io.scan_dataframe(
-        os.path.join(population_directory, "trip_modes.parquet")
-    ).filter(pl.col("mode") == "car_driver")
-    trips = trips.join(trip_modes, on="trip_id", how="semi")
-    trips = trips.sort("agent_id")
-    return trips
-
-
 def generate_agents(tomtom: pl.DataFrame):
     tomtom = tomtom.with_columns(agent_id=pl.col("id"))
     assert len(tomtom) == tomtom["agent_id"].n_unique(), "Id should be unique over TomTom requests"
@@ -90,6 +68,7 @@ def generate_agents(tomtom: pl.DataFrame):
         pl.col("origin").alias("class.origin"),
         pl.col("destination").alias("class.destination"),
         pl.lit(1).alias("class.vehicle"),
+        pl.col("cpath").alias("class.route"),
     )
 
     print(
@@ -106,11 +85,11 @@ def generate_agents(tomtom: pl.DataFrame):
     return agents, alts, trips
 
 
-def write_parameters(run_directory: str, config: dict, car_only_directory: str):
+def write_parameters(run_directory: str, config: dict, road_only_directory: str):
     parameters = metro_run.PARAMETERS.copy()
     parameters["learning_model"]["value"] = 0.0
     parameters["input_files"]["road_network_conditions"] = os.path.join(
-        os.path.abspath(car_only_directory), "output", "net_cond_next_exp_edge_ttfs.parquet"
+        os.path.abspath(road_only_directory), "output", "net_cond_sim_edge_ttfs.parquet"
     )
     parameters["period"] = config["period"]
     parameters["road_network"]["recording_interval"] = config["recording_interval"]
@@ -131,15 +110,13 @@ if __name__ == "__main__":
     config = read_config()
     mandatory_keys = [
         "clean_edges_file",
-        "population_directory",
         "calibration.post_map_matching.output_filename",
-        "run.edge_capacity",
         "run.period",
         "run.recording_interval",
         "run.spillback",
         "run.max_pending_duration",
         "run.routing_algorithm",
-        "run.car_only.directory",
+        "run.road_only.directory",
         "run.tomtom_routes.directory",
     ]
     check_keys(config, mandatory_keys)
@@ -152,10 +129,11 @@ if __name__ == "__main__":
     edges = metro_run.read_edges(
         config["clean_edges_file"],
         None,
-        config["edge_penalties_file"],
+        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("capacities_filename"),
     )
     edges = metro_run.generate_edges(edges, config["run"])
-    vehicles = metro_run.generate_vehicles()
+    vehicles = metro_run.generate_vehicles(config["run"])
 
     tomtom = read_tomtom_paths(
         config["calibration"]["post_map_matching"]["output_filename"],
@@ -168,4 +146,4 @@ if __name__ == "__main__":
 
     metro_run.write_road_network(run_directory, edges, vehicles)
 
-    write_parameters(run_directory, config["run"], config["run"]["car_only"]["directory"])
+    write_parameters(run_directory, config["run"], config["run"]["road_only"]["directory"])
