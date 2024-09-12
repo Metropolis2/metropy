@@ -366,14 +366,13 @@ if __name__ == "__main__":
     mandatory_keys = [
         "travel_survey.directory",
         "population_directory",
+        "demand.modes",
     ]
     check_keys(config, mandatory_keys)
 
     t0 = time.time()
 
-    mode_dtype = pl.Enum(
-        ["public_transit", "car_driver", "car_passenger", "motorcycle", "bicycle", "walking"]
-    )
+    mode_dtype = pl.Enum(config["demand"]["modes"])
 
     directory = config["travel_survey"]["directory"]
     survey_type = config["travel_survey"]["survey_type"]
@@ -401,7 +400,7 @@ if __name__ == "__main__":
 
     df = save_drawn_modes(df_pop, drawn_modes, config["population_directory"])
 
-    if config["synthetic_population"].get("predict_modes", dict()).get("output_graphs", False):
+    if config["demand"].get("predict_modes", dict()).get("output_graphs", False):
         if not "graph_directory" in config:
             raise Exception("Missing key `graph_directory` in config")
         graph_dir = os.path.join(config["graph_directory"], "synthetic_population.mode_prediction")

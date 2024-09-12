@@ -8,6 +8,8 @@ random_seed = 13081996
 # Path to the directory where graphs should be stored.
 graph_directory = "./output/graph/"
 
+# Path to METROPOLIS2 executable.
+metropolis_exec = "./execs/metropolis_cli"
 # Path to METROPOLIS2's routing executable.
 routing_exec = "./execs/routing_cli"
 
@@ -75,7 +77,7 @@ spillback = true
 max_pending_duration = 30.0
 # Speed (in meters per second) at which waves move backward in spillback conditions.
 # Comment to use instantaneous backward wave propagation.
-backward_wave_speed = 4.0
+# backward_wave_speed = 4.0
 # Routing algorithm to use in METROPOLIS (Intersect or TCH).
 routing_algorithm = "Intersect"
 # Headway of car vehicles.
@@ -95,13 +97,17 @@ use_bottleneck = true
 
 [run.road_only]
 # Directory where the files for the road-only run are stored.
-directory = "./run/road_only2/"
+directory = "./run/road_only5/"
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
-smoothing_factor = 0.02
+smoothing_factor = 0.05
 # Number of iterations to run.
 nb_iterations = 20
 # If `true`, the network conditions from the previous run are used.
 reuse_net_cond = true
+
+[run.road_only_same_route]
+# Directory where the files for the road-only run are stored.
+directory = "./run/road_only_same_route_2a/"
 
 [run.tomtom_routes]
 # Directory where the files for the TomTom-routes run are stored.
@@ -328,9 +334,6 @@ gaz_et_inconnu.critair_2 = "PC_electric"
 gaz_et_inconnu.critair_3 = "PC_electric"
 gaz_et_inconnu.non_classe = "PC_electric"
 
-[synthetic_population.predict_modes]
-output_graphs = true
-
 [synthetic_population.plot]
 household_id = 19
 filename = "./output/synthetic_population/household_19.html"
@@ -522,9 +525,13 @@ explanatory_variables = ["road_type", "roundabout", "traffic_signals", "lanes"]
 # interaction_variables = [["road_type", "traffic_signals"]]
 interaction_variables = []
 # List of alpha penalties to try in the LASSO regression.
-# alphas = [5, 10, 100, 200, 500]
+alphas = [5, 10, 100, 200, 500]
 # Maximum capacity (in PCE / h) that is allowed on edges.
 maximum_capacity = 2000
+
+[calibration.departure_time_calibration]
+# Directory where the simulations are run.
+run_directory = "./run/departure_time_calibration/"
 
 [travel_survey]
 # Path to the directory where the travel survey is stored.
@@ -651,3 +658,22 @@ cold_emissions_threshold = 11.33
 # Path to the output file where the emissions are stored
 # (possible extensions: Parquet, CSV).
 output_filename = "./output/emissions/emissions.parquet"
+
+[demand]
+# List of modes in the simulations.
+modes = ["car_driver", "car_passenger", "motorcycle", "public_transit", "bicycle", "walking"]
+
+[demand.predict_modes]
+output_graphs = true
+
+[demand.epsilons]
+# List of mode nests.
+nests = [
+    ["car_driver", "car_passenger", "motorcycle"],
+    ["public_transit"],
+    ["bicycle", "walking"],
+]
+# Lambda value per nest.
+lambdas = [1.0, 1.0, 1.0]
+# Scale of the Gumbel epsilons.
+mu = 1.0
