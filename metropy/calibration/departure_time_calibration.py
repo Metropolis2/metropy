@@ -79,6 +79,12 @@ def process_trips(trips: pl.LazyFrame, directory: str):
     # Add origin / destination zone.
     zones = metro_io.scan_dataframe(os.path.join(directory, "trip_zones.parquet")).with_columns(
         # TODO. This is specific to IDF and should be improved.
+        pl.col("departement_origin").replace_strict(
+            {"27": "95", "45": "78", "60": "95"}, default=pl.col("departement_origin"),
+        ),
+        pl.col("departement_destination").replace_strict(
+            {"27": "95", "45": "78", "60": "95"}, default=pl.col("departement_destination"),
+        ),
         pl.col("departement_origin")
         .replace_strict(
             {"75": 1, "77": 3, "78": 3, "91": 3, "92": 2, "93": 2, "94": 2, "95": 3}, default=3
@@ -135,6 +141,7 @@ def classify_trips(lf: pl.LazyFrame, cluster_centers: pl.DataFrame):
         "departement_origin",
         "departement_destination",
     ]
+    lf = lf.filter(pl.col(var).is_not_null() for var in variables)
     x = lf.select(variables).collect().to_pandas()
     y = cluster_centers.select(variables).to_pandas()
     dists = gower.gower_matrix(
