@@ -401,7 +401,8 @@ if __name__ == "__main__":
         "routing.road_split.trips_filename",
         "calibration.free_flow_calibration.output_filename",
         "calibration.departure_time_calibration.run_directory",
-        "travel_survey.departure_time_distribution.output_filename",
+        "travel_survey.departure_time_distribution.distribution_filename",
+        "travel_survey.departure_time_distribution.cluster_filename",
         "graph_directory",
     ]
     check_keys(config, mandatory_keys)
