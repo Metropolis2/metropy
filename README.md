@@ -43,6 +43,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Post-processing for the map matching results: `metropy.calibration.post_map_matching`
 - Free-flow travel time calibration: `metropy.calibration.free_flow_calibration.py`
 - Edge capacities calibration: `metropy.calibration.capacities_calibration.py`
+- Departure-time distribution calibration: `metropy.calibration.departure_time_calibration.py`
 - [France synthetic population](https://github.com/eqasim-org/ile-de-france) import:
   `metropy.synthetic_population.france`
 - Generating vehicles for the population from French vehicle fleet data:
@@ -64,8 +65,10 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Compute public-transit chevelus: `metropy.public_transit.chevelus`
 - Compute pollutant emissions and fuel consumption with the EMISENS model:
   `metropy.emissions.emisens`
-- Compare METROPOLIS2 free-flow travel times with travel survey data:
+- Compare METROPOLIS2 free-flow travel times with travel-survey data:
   `metropy.travel_survey.free_flow_travel_time`
+- Retrieve the departure-time distribution of trips in travel-survey data:
+  `metropy.travel_survey.departure_time_distribution`
 
 # Acknowledgments
 

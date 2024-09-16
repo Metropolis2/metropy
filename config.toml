@@ -40,21 +40,41 @@ population_directory = "./output/synthetic_population_20pct/"
 
 [default_edge_capacities]
 # Bottleneck capacity per roadtype, in PCE/h.
-motorway = 2000
-trunk = 2000
-primary = 2000
-secondary = 2000
-tertiary = 2000
-motorway_link = 2000
-trunk_link = 2000
-primary_link = 2000
-secondary_link = 2000
-tertiary_link = 2000
-living_street = 2000
-unclassified = 2000
-residential = 2000
+# motorway = 2000.0
+# trunk = 2000.0
+# primary = 1800.0
+# secondary = 1500.0
+# tertiary = 1200.0
+# motorway_link = 1800.0
+# trunk_link = 1800.0
+# primary_link = 1800.0
+# secondary_link = 1500.0
+# tertiary_link = 1200.0
+# living_street = 900.0
+# unclassified = 1200.0
+# residential = 1200.0
+# #road = 300
+# #service = 300
+# traffic_signals_factor = 0.5
+# roundabout_factor = 0.75
+
+motorway = 1700.0
+trunk = 1850.0
+primary = 2150.0
+secondary = 1700.0
+tertiary = 1400.0
+motorway_link = 1350.0
+trunk_link = 1350.0
+primary_link = 2150.0
+secondary_link = 1700.0
+tertiary_link = 1400.0
+living_street = 900.0
+unclassified = 1000.0
+residential = 1300.0
 #road = 300
 #service = 300
+traffic_signals_factor = 0.7
+roundabout_factor = 0.4
 
 [run]
 # Directory where the run files are stored.
@@ -97,13 +117,13 @@ use_bottleneck = true
 
 [run.road_only]
 # Directory where the files for the road-only run are stored.
-directory = "./run/road_only5/"
+directory = "./run/road_only/"
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
 smoothing_factor = 0.05
 # Number of iterations to run.
 nb_iterations = 20
 # If `true`, the network conditions from the previous run are used.
-reuse_net_cond = true
+reuse_net_cond = false
 
 [run.road_only_same_route]
 # Directory where the files for the road-only run are stored.
@@ -546,7 +566,9 @@ desired_work_times_filename = "./output/travel_survey/desired_work_times.parquet
 
 [travel_survey.departure_time_distribution]
 # Path to the file with the departure time distributions.
-output_filename = "./output/travel_survey/departure_time_distributions.parquet"
+distribution_filename = "./output/travel_survey/departure_time_distributions.parquet"
+# Path to the file with the centers of the clusters.
+cluster_filename = "./output/travel_survey/departure_time_cluster_centers.parquet"
 
 [routing.opentripplanner]
 # Base URL of the OpenTripPlanner server instance.
