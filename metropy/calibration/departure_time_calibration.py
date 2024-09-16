@@ -80,10 +80,10 @@ def process_trips(trips: pl.LazyFrame, directory: str):
     zones = metro_io.scan_dataframe(os.path.join(directory, "trip_zones.parquet")).with_columns(
         # TODO. This is specific to IDF and should be improved.
         pl.col("departement_origin").replace_strict(
-            {"27": "95", "45": "78", "60": "95"}, default=pl.col("departement_origin"),
+            {"27": "78", "45": "77", "60": "95"}, default=pl.col("departement_origin"),
         ),
         pl.col("departement_destination").replace_strict(
-            {"27": "95", "45": "78", "60": "95"}, default=pl.col("departement_destination"),
+            {"27": "78", "45": "77", "60": "95"}, default=pl.col("departement_destination"),
         ),
         pl.col("departement_origin")
         .replace_strict(
