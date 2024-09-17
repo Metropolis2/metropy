@@ -67,6 +67,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
   `metropy.emissions.emisens`
 - Compare METROPOLIS2 free-flow travel times with travel-survey data:
   `metropy.travel_survey.free_flow_travel_time`
+- Estimate desired activity start time and duration from travel-survey data:
+  `metropy.travel_survey.desired_times`
 - Retrieve the departure-time distribution of trips in travel-survey data:
   `metropy.travel_survey.departure_time_distribution`
 
