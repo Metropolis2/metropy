@@ -127,6 +127,7 @@ if __name__ == "__main__":
     config = read_config()
     mandatory_keys = [
         "clean_edges_file",
+        "capacities_filename",
         "population_directory",
         "run.period",
         "run.recording_interval",

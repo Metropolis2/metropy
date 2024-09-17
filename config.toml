@@ -117,7 +117,7 @@ use_bottleneck = true
 
 [run.road_only]
 # Directory where the files for the road-only run are stored.
-directory = "./run/road_only/"
+directory = "./run/road_only5/"
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
 smoothing_factor = 0.05
 # Number of iterations to run.
@@ -545,9 +545,9 @@ explanatory_variables = ["road_type", "roundabout", "traffic_signals", "lanes"]
 # interaction_variables = [["road_type", "traffic_signals"]]
 interaction_variables = []
 # List of alpha penalties to try in the LASSO regression.
-alphas = [5, 10, 100, 200, 500]
+# alphas = [5, 10, 100, 200, 500]
 # Maximum capacity (in PCE / h) that is allowed on edges.
-maximum_capacity = 2000
+maximum_capacity = 2200
 
 [calibration.departure_time_calibration]
 # Directory where the simulations are run.
@@ -680,6 +680,10 @@ cold_emissions_threshold = 11.33
 # Path to the output file where the emissions are stored
 # (possible extensions: Parquet, CSV).
 output_filename = "./output/emissions/emissions.parquet"
+
+[fuel_consumption]
+# Path to the output file where the fuel consumptions are stored.
+output_filename = "./output/emissions/ff_fuel_consumption.parquet"
 
 [demand]
 # List of modes in the simulations.

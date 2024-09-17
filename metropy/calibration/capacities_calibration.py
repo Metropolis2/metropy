@@ -10,21 +10,25 @@ import metropy.utils.io as metro_io
 import metropy.calibration.base as metro_calib
 
 
-def read_metropolis_congestion_time(filename: str, edges: pl.DataFrame):
+def read_metropolis_routes(filename: str, edges: pl.DataFrame):
     print("Reading route results...")
     lf = metro_io.scan_dataframe(filename)
     lf = lf.with_columns((pl.col("exit_time") - pl.col("entry_time")).alias("travel_time"))
     edges = edges.select(
         "edge_id",
-        (pl.col("length") / pl.col("speed") + pl.col("constant_travel_time")).alias("ff_tt"),
+        (pl.col("length") / pl.col("speed") + pl.col("constant_travel_time")).alias("ff_time"),
     )
+    # Edges are shifted by -1 because the exit time of an edge depends mostly on the capacity of the
+    # following edge (vehicles can exit an edge only when they are free to enter the following
+    # edge).
     df = (
         lf.join(edges.lazy(), on="edge_id")
         .sort("trip_id", "entry_time")
         .select(
             "trip_id",
             pl.col("edge_id").shift(-1, fill_value=pl.col("edge_id")).over("trip_id"),
-            (pl.col("travel_time") - pl.col("ff_tt")).alias("congested_time"),
+            "ff_time",
+            (pl.col("travel_time") - pl.col("ff_time")).alias("congested_time"),
         )
         .drop_nulls()
         .collect()
@@ -32,24 +36,29 @@ def read_metropolis_congestion_time(filename: str, edges: pl.DataFrame):
     return df
 
 
-def compute_congested_time_by_edge_characteristics(
+def compute_congestion_index_by_edge_characteristics(
     edges_variables: pl.DataFrame,
     route_df: pl.DataFrame,
     config_variables: dict,
     explanatory_variables: list[str],
     interaction_variables: list[list[str]],
 ):
-    print("Computing congested time by edge characteristics...")
-    # Retrieve the congested time for all edges in the path of the TomTom requests.
-    # `tomtom_congested_times` is a pl.Series where each element is a list with the edge congested
-    # time. The elements are ordered by TomTom request id.
+    print("Computing congestion index by edge characteristics...")
+    # Retrieve the congestion time and ff time for all edges in the path of the TomTom requests.
     df = route_df.group_by(pl.col("trip_id").alias("id")).agg(
         pl.col("edge_id"),
         pl.col("congested_time"),
+        pl.col("ff_time"),
     )
     output = []
-    # Add total congested time for each TomTom request.
-    output.append(df.select(pl.col("congested_time").list.sum().alias("constant")))
+    # Add total congestion index for each TomTom request.
+    output.append(
+        df.select(
+            (pl.col("congested_time").list.sum() / pl.col("ff_time").list.sum())
+            .fill_nan(0.0)
+            .alias("constant")
+        )
+    )
     for var in explanatory_variables:
         print(f"\t{var}...")
         output.append(
@@ -61,10 +70,15 @@ def compute_congested_time_by_edge_characteristics(
                 .alias(var),
             )
             .lazy()
-            .explode("congested_time", var)
+            .explode("congested_time", "ff_time", var)
             .group_by("id", maintain_order=True)
             .agg(
-                (pl.col("congested_time") * (pl.col(var) == mod)).sum().alias(f"{var}_{mod}")
+                (
+                    (pl.col("congested_time") * (pl.col(var) == mod)).sum()
+                    / (pl.col("ff_time") * (pl.col(var) == mod)).sum()
+                )
+                .fill_nan(0.0)
+                .alias(f"{var}_{mod}")
                 for mod in config_variables[var][1:]
             )
             .drop("id")
@@ -86,12 +100,16 @@ def compute_congested_time_by_edge_characteristics(
                 .alias(var2),
             )
             .lazy()
-            .explode("congested_time", var1, var2)
+            .explode("congested_time", "ff_time", var1, var2)
             .group_by("id", maintain_order=True)
             .agg(
-                pl.col("congested_time")
-                .filter(pl.col(var1).eq(mod1), pl.col(var2).eq(mod2))
-                .sum()
+                (
+                    pl.col("congested_time")
+                    .filter(pl.col(var1).eq(mod1), pl.col(var2).eq(mod2))
+                    .sum()
+                    / pl.col("ff_time").filter(pl.col(var1).eq(mod1), pl.col(var2).eq(mod2)).sum()
+                )
+                .fill_nan(0.0)
                 .alias(f"{var1}_{mod1}_{var2}_{mod2}")
                 for mod1 in config_variables[var1][1:]
                 for mod2 in config_variables[var2][1:]
@@ -134,20 +152,16 @@ def get_new_capacities(
     return df
 
 
-def plot_graphs(Y_tomtom: np.ndarray, Y_metro: np.ndarray, Y_hat: np.ndarray, graph_dir: str):
+def plot_graphs(Y_tomtom: np.ndarray, Y_metro: np.ndarray, graph_dir: str):
     if not os.path.isdir(graph_dir):
         os.makedirs(graph_dir)
     corr = np.corrcoef(Y_tomtom, Y_metro)[0][1]
-    print(f"Correlation between TomTom and uncalibrated values: {corr:.4%}")
-    corr = np.corrcoef(Y_tomtom, Y_hat)[0][1]
     print(f"Correlation between TomTom and calibrated values: {corr:.4%}")
     rmse = root_mean_squared_error(Y_tomtom, Y_metro)
-    print(f"RMSE between TomTom and uncalibrated values: {rmse:.2f}")
-    rmse = root_mean_squared_error(Y_tomtom, Y_hat)
     print(f"RMSE between TomTom and calibrated values: {rmse:.2f}")
     # Distribution of TomTom congested times (from TomTom, from simulation and predicted).
     fig, ax = mpl.get_figure(fraction=0.8)
-    m = max(Y_tomtom.max(), Y_metro.max(), Y_hat.max()) / 60
+    m = max(Y_tomtom.max(), Y_metro.max()) / 60
     bins = np.arange(0.0, m + 1.0, 1.0)
     F_tomtom, _, _ = ax.hist(
         Y_tomtom / 60,
@@ -167,26 +181,15 @@ def plot_graphs(Y_tomtom: np.ndarray, Y_metro: np.ndarray, Y_hat: np.ndarray, gr
         histtype="step",
         alpha=0.7,
         color=mpl.CMP(1),
-        label="METROPOLIS",
-    )
-    F_hat, _, _ = ax.hist(
-        Y_hat / 60,
-        bins=list(bins),
-        density=True,
-        cumulative=True,
-        histtype="step",
-        alpha=0.7,
-        color=mpl.CMP(2),
-        label="Predictions",
+        label="METROPOLIS2",
     )
     # bin index at which all cumulative densities are over 99%.
     idx = max(
         np.searchsorted(F_tomtom, 0.99),
         np.searchsorted(F_metro, 0.99),
-        np.searchsorted(F_hat, 0.99),
     )
     ax.set_xlim(0, bins[idx])
-    ax.set_xlabel("Congested time (min.)")
+    ax.set_xlabel("Travel time (min.)")
     ax.set_ylim(0, 1)
     ax.set_ylabel("Cumulative density")
     ax.legend()
@@ -195,13 +198,13 @@ def plot_graphs(Y_tomtom: np.ndarray, Y_metro: np.ndarray, Y_hat: np.ndarray, gr
     fig.savefig(os.path.join(graph_dir, "congested_times_hist.pdf"))
     # Scatter plot of congested times (from TomTom and calibrated).
     fig, ax = mpl.get_figure(fraction=0.8)
-    m = max(Y_tomtom.max(), Y_hat.max()) / 60
-    ax.scatter(Y_tomtom / 60, Y_hat / 60, color=mpl.CMP(0), marker=".", s=0.1, alpha=0.1)
+    m = max(Y_tomtom.max(), Y_metro.max()) / 60
+    ax.scatter(Y_tomtom / 60, Y_metro / 60, color=mpl.CMP(0), marker=".", s=0.1, alpha=0.1)
     ax.plot([0, m], [0, m], color="red", linewidth=0.5)
     ax.set_xlim(0, m)
-    ax.set_xlabel("TomTom congested time (min.)")
+    ax.set_xlabel("TomTom travel time (min.)")
     ax.set_ylim(0, m)
-    ax.set_ylabel("Calibrated congested time (min.)")
+    ax.set_ylabel("METROPOLIS2 travel time (min.)")
     ax.grid()
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "congested_times_scatter.png"))
@@ -229,7 +232,7 @@ if __name__ == "__main__":
 
     edges_input = metro_io.read_dataframe(os.path.join(run_directory, "input", "edges.parquet"))
 
-    route_df = read_metropolis_congestion_time(
+    route_df = read_metropolis_routes(
         os.path.join(run_directory, "output", "route_results.parquet"),
         edges_input,
     )
@@ -250,7 +253,7 @@ if __name__ == "__main__":
         edges_charac, config["calibration"]["variables"], used_variables
     )
 
-    exog_variables = compute_congested_time_by_edge_characteristics(
+    exog_variables = compute_congestion_index_by_edge_characteristics(
         edges_variables,
         route_df,
         config_variables,
@@ -258,10 +261,10 @@ if __name__ == "__main__":
         interaction_variables,
     )
 
-    endog_variable = tomtom_df["congested_time"]
+    endog_variable = tomtom_df["congested_time"] / tomtom_df["ff_time"]
 
     (
-        Y_hat,
+        _,
         residuals,
         rmse,
         coefs,
@@ -270,23 +273,31 @@ if __name__ == "__main__":
         exog_variables,
         config["calibration"]["capacities_calibration"],
     )
+    print(coefs)
 
-    old_capacities = metro_io.read_dataframe(config["capacities_filename"])
+    # TODO: Write the code to adjust the capacities from the results of the LASSO.
+    #  old_capacities = metro_io.read_dataframe(config["capacities_filename"])
 
-    capacities = get_new_capacities(
-        edges_variables,
-        old_capacities,
-        explanatory_variables,
-        interaction_variables,
-        coefs,
-        config_variables,
-        config["calibration"]["capacities_calibration"]["maximum_capacity"],
-    )
+    #  capacities = get_new_capacities(
+        #  edges_variables,
+        #  old_capacities,
+        #  explanatory_variables,
+        #  interaction_variables,
+        #  coefs,
+        #  config_variables,
+        #  config["calibration"]["capacities_calibration"]["maximum_capacity"],
+    #  )
 
-    metro_io.save_dataframe(capacities, config["capacities_filename"])
+    #  metro_io.save_dataframe(capacities, config["capacities_filename"])
 
     graph_dir = os.path.join(config["graph_directory"], "calibration.capacities_calibration")
-    plot_graphs(endog_variable.to_numpy(), exog_variables["constant"].to_numpy(), Y_hat, graph_dir)
+    plot_graphs(
+        (tomtom_df["congested_time"] + tomtom_df["ff_time"]).to_numpy(),
+        route_df.group_by("trip_id")
+        .agg((pl.col("congested_time").sum() + pl.col("ff_time").sum()).alias("tt"))["tt"]
+        .to_numpy(),
+        graph_dir,
+    )
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
