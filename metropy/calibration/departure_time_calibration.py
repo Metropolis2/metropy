@@ -132,7 +132,6 @@ def read_departure_time_cluster_centers(filename: str):
 def classify_trips(lf: pl.LazyFrame, cluster_centers: pl.DataFrame):
     print("Computing Gower distance between trips and cluster centers...")
     variables = [
-        "departure_time",
         "preceding_purpose",
         "following_purpose",
         "od_distance",
@@ -147,7 +146,7 @@ def classify_trips(lf: pl.LazyFrame, cluster_centers: pl.DataFrame):
     dists = gower.gower_matrix(
         x,
         y,
-        cat_features=[False, True, True, False, True, True, True, True],
+        cat_features=[True, True, False, True, True, True, True],
     )
     categories = dists.argmin(axis=1)
     lf = lf.with_columns(category=pl.Series(categories))
@@ -226,6 +225,10 @@ def get_departure_time_choice(
     results = trips.join(tds, on="trip_id").select(
         "category", pl.col("pre_exp_departure_time").alias("departure_time")
     )
+    # TODO: This will drop the secondary-only trips for which there is no `pre_exp_departure_time`.
+    # Something should be done so that these trips are kept (the departure time can actually be
+    # known).
+    results = results.drop_nulls()
     return results.collect()
 
 
@@ -346,7 +349,7 @@ def make_graphs(
         histtype="step",
         alpha=0.7,
         color=mpl.CMP(1),
-        label="METROPOLIS",
+        label="METROPOLIS2",
     )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
@@ -356,6 +359,36 @@ def make_graphs(
     ax.grid()
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "all_departure_times_hist.pdf"))
+    # Global departure-time density.
+    fig, ax = mpl.get_figure(fraction=0.8)
+    bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 15 / 60)
+    ax.hist(
+        distrs["departure_time"] / 3600,
+        bins=list(bins),
+        weights=distrs["weight"],
+        density=True,
+        histtype="step",
+        alpha=0.7,
+        color=mpl.CMP(0),
+        label="Travel Survey",
+    )
+    ax.hist(
+        metro_trips["departure_time"] / 3600,
+        bins=list(bins),
+        density=True,
+        histtype="step",
+        alpha=0.7,
+        color=mpl.CMP(1),
+        label="METROPOLIS2",
+    )
+    ax.set_xlim(period[0] / 3600, period[1] / 3600)
+    ax.set_xlabel("Departure time (h)")
+    ax.set_ylim(bottom=0)
+    ax.set_ylabel("Density")
+    ax.legend()
+    ax.grid()
+    fig.tight_layout()
+    fig.savefig(os.path.join(graph_dir, "all_departure_times_density_hist.pdf"))
     # Departure-time distribution by category.
     distrs_dict = distrs.partition_by("category", as_dict=True, include_key=False)
     for (cat,), metro_df in metro_trips.partition_by(
@@ -383,7 +416,7 @@ def make_graphs(
             histtype="step",
             alpha=0.7,
             color=mpl.CMP(1),
-            label="METROPOLIS",
+            label="METROPOLIS2",
         )
         ax.set_xlim(period[0] / 3600, period[1] / 3600)
         ax.set_xlabel("Departure time (h)")

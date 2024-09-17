@@ -86,7 +86,6 @@ def read_egt(directory: str, period: list[float]):
 def classify_trips(df: pl.DataFrame):
     print("Computing Gower distance between trips...")
     variables = [
-        "departure_time",
         "preceding_purpose",
         "following_purpose",
         "od_distance",
@@ -98,10 +97,10 @@ def classify_trips(df: pl.DataFrame):
     x = df.select(variables).to_pandas()
     dists = gower.gower_matrix(
         x,
-        cat_features=[False, True, True, False, True, True, True, True],
+        cat_features=[True, True, False, True, True, True, True],
     )
     print("Classifying trips in categories...")
-    cluster_size = 600
+    cluster_size = 1200
     nb_clusters = len(x) // cluster_size
     clustering = kmedoids.KMedoids(nb_clusters, method="fasterpam").fit(dists)
     centers = pl.from_pandas(x.loc[clustering.medoid_indices_]).with_columns(
