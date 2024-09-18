@@ -35,14 +35,15 @@ def _get_variables(lf: pl.LazyFrame):
     return x
 
 
-def trip_clustering(lf: pl.LazyFrame, cluster_size=1000):
+def trip_clustering(lf: pl.LazyFrame, cluster_size=1000, random_seed=None):
     print("Running clustering...")
     x = _get_variables(lf)
     nb_clusters = len(x) // cluster_size
-    clustering = KMeans(nb_clusters).fit(x)
+    clustering = KMeans(nb_clusters, random_state=random_seed).fit(x)
     centers = pl.DataFrame(clustering.cluster_centers_, schema=list(x.columns)).with_columns(
         cluster=pl.int_range(nb_clusters, eager=True)
     )
+    assert clustering.labels_ is not None
     print("Number of clusters: {:,}".format(nb_clusters))
     print("Number of trips classified: {:,}".format(len(clustering.labels_)))
     return clustering.labels_, centers
@@ -50,6 +51,9 @@ def trip_clustering(lf: pl.LazyFrame, cluster_size=1000):
 
 def trip_labeling(lf: pl.LazyFrame, centers: pl.DataFrame):
     print("Assigning cluster to trips...")
+    assert centers["cluster"].min() == 0
+    assert centers["cluster"].max() == len(centers) - 1
     x = _get_variables(lf)
-    labels = pairwise_distances_argmin(x, centers.to_pandas(), metric="euclidean")
+    y = centers.sort("cluster").drop("cluster").to_pandas()
+    labels = pairwise_distances_argmin(x, y, metric="euclidean")
     return labels

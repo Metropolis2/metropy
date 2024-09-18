@@ -140,7 +140,7 @@ def read_trips(
         # TODO. I should really predict modes at the tour level!
         car_probs = trips.join(trip_modes, on="trip_id").group_by("tour_id").agg(
             prob=pl.col("mode").eq("car_driver").mean()
-        ).collect()
+        ).sort("tour_id").collect()
         rng = np.random.default_rng(13081996)
         u = rng.random(size=len(car_probs))
         car_tours = car_probs.filter(pl.col("prob") >= pl.Series(u))["tour_id"]
@@ -168,7 +168,7 @@ def read_trips(
     )
     # Compute time of the following activity.
     trips = trips.with_columns(
-        (pl.col("departure_time").shift(-1).over("agent_id") - pl.col("arrival_time"))
+        (pl.col("departure_time").shift(-1).over("tour_id") - pl.col("arrival_time"))
         .fill_null(0.0)
         .alias("activity_time")
     )

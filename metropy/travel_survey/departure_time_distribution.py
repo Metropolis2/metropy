@@ -82,8 +82,8 @@ def read_egt(directory: str, period: list[float]):
     return df
 
 
-def classify_trips(df: pl.DataFrame):
-    labels, centers = trip_clustering(df.lazy(), cluster_size=2000)
+def classify_trips(df: pl.DataFrame, random_seed=None):
+    labels, centers = trip_clustering(df.lazy(), cluster_size=2000, random_seed=random_seed)
     df = df.select(
         pl.Series(labels).alias("cluster"),
         "departure_time",
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Error. Unsupported survey type: {survey_type}")
 
-    df, centers = classify_trips(df)
+    df, centers = classify_trips(df, config.get("random_seed"))
 
     metro_io.save_dataframe(
         df, config["travel_survey"]["departure_time_distribution"]["distribution_filename"]
