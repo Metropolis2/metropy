@@ -8,11 +8,12 @@ import polars as pl
 from scipy.stats import cramervonmises_2samp
 from skopt import gp_minimize
 from skopt.space import Real
-import gower
+import matplotlib.pyplot as plt
 
 import metropy.utils.mpl as mpl
 import metropy.run.base as metro_run
 import metropy.utils.io as metro_io
+from metropy.utils.clustering import trip_labeling
 
 
 def optimization(
@@ -29,20 +30,22 @@ def optimization(
 
     # Define the parameter space
     space = [
-        Real(low=1e-2, high=10.0, name="mu"),
+        Real(low=1e-2, high=1.0, name="mu"),
         Real(low=0.0, high=1.0, name="beta_work"),
         Real(low=0.0, high=1.0, name="beta_education"),
         Real(low=0.0, high=1.0, name="beta_shop"),
         Real(low=0.0, high=1.0, name="beta_leisure"),
         Real(low=0.0, high=1.0, name="beta_other"),
-        Real(low=0.0, high=1.0, name="gamma_work"),
-        Real(low=0.0, high=1.0, name="gamma_education"),
-        Real(low=0.0, high=1.0, name="gamma_shop"),
-        Real(low=0.0, high=1.0, name="gamma_leisure"),
-        Real(low=0.0, high=1.0, name="gamma_other"),
+        Real(low=0.0, high=2.0, name="gamma_work"),
+        Real(low=0.0, high=2.0, name="gamma_education"),
+        Real(low=0.0, high=2.0, name="gamma_shop"),
+        Real(low=0.0, high=2.0, name="gamma_leisure"),
+        Real(low=0.0, high=2.0, name="gamma_other"),
     ]
     # Perform Bayesian Optimization
-    result = gp_minimize(objective_function, space, n_calls=200, random_state=13081996, verbose=True)
+    result = gp_minimize(
+        objective_function, space, n_calls=300, random_state=13081996, verbose=True
+    )
     assert result is not None
     # Optimal parameters
     theta_star = result.x
@@ -80,10 +83,12 @@ def process_trips(trips: pl.LazyFrame, directory: str):
     zones = metro_io.scan_dataframe(os.path.join(directory, "trip_zones.parquet")).with_columns(
         # TODO. This is specific to IDF and should be improved.
         pl.col("departement_origin").replace_strict(
-            {"27": "78", "45": "77", "60": "95"}, default=pl.col("departement_origin"),
+            {"27": "78", "45": "77", "60": "95"},
+            default=pl.col("departement_origin"),
         ),
         pl.col("departement_destination").replace_strict(
-            {"27": "78", "45": "77", "60": "95"}, default=pl.col("departement_destination"),
+            {"27": "78", "45": "77", "60": "95"},
+            default=pl.col("departement_destination"),
         ),
         pl.col("departement_origin")
         .replace_strict(
@@ -129,37 +134,19 @@ def read_departure_time_cluster_centers(filename: str):
     return metro_io.read_dataframe(filename)
 
 
-def classify_trips(lf: pl.LazyFrame, cluster_centers: pl.DataFrame):
-    print("Computing Gower distance between trips and cluster centers...")
-    variables = [
-        "preceding_purpose",
-        "following_purpose",
-        "od_distance",
-        "area_origin",
-        "area_destination",
-        "departement_origin",
-        "departement_destination",
-    ]
-    lf = lf.filter(pl.col(var).is_not_null() for var in variables)
-    x = lf.select(variables).collect().to_pandas()
-    y = cluster_centers.select(variables).to_pandas()
-    dists = gower.gower_matrix(
-        x,
-        y,
-        cat_features=[True, True, False, True, True, True, True],
-    )
-    categories = dists.argmin(axis=1)
-    lf = lf.with_columns(category=pl.Series(categories))
+def label_trips(lf: pl.LazyFrame, cluster_centers: pl.DataFrame):
+    labels = trip_labeling(lf, cluster_centers)
+    lf = lf.with_columns(cluster=pl.Series(labels))
     return lf
 
 
 def cramervonmises_distance(metro_trips: pl.DataFrame, distrs: pl.DataFrame):
-    # Compute the Cramer-von Mises statistics for all categories.
+    # Compute the Cramer-von Mises statistics for all clusters.
     dists = dict()
     lengths = dict()
-    distrs_dict = distrs.partition_by("category", as_dict=True, include_key=False)
+    distrs_dict = distrs.partition_by("cluster", as_dict=True, include_key=False)
     for (cat,), metro_df in metro_trips.partition_by(
-        "category", as_dict=True, include_key=False
+        "cluster", as_dict=True, include_key=False
     ).items():
         this_distr = distrs_dict[(cat,)]
         values = np.repeat(
@@ -198,7 +185,7 @@ def write_parameters(run_directory: str, config: dict, congestion_run: str):
     parameters["road_network"]["max_pending_duration"] = config["max_pending_duration"]
     if "backward_wave_speed" in config:
         parameters["road_network"]["backward_wave_speed"] = config["backward_wave_speed"]
-    parameters["road_network"]["algorithm_type"] = config["routing_algorithm"]
+    parameters["road_network"]["algorithm_type"] = "TCH"
     parameters["only_compute_decisions"] = True
     print("Writing parameters")
     with open(os.path.join(run_directory, "parameters.json"), "w") as f:
@@ -223,7 +210,7 @@ def get_departure_time_choice(
     # Load results.
     tds = pl.scan_parquet(os.path.join(run_directory, "output", "trip_results.parquet"))
     results = trips.join(tds, on="trip_id").select(
-        "category", pl.col("pre_exp_departure_time").alias("departure_time")
+        "cluster", pl.col("pre_exp_departure_time").alias("departure_time")
     )
     # TODO: This will drop the secondary-only trips for which there is no `pre_exp_departure_time`.
     # Something should be done so that these trips are kept (the departure time can actually be
@@ -323,33 +310,45 @@ def generate_agents(trips: pl.LazyFrame, parameters: dict, random_seed=None):
 
 
 def make_graphs(
-    metro_trips: pl.DataFrame, distrs: pl.DataFrame, graph_dir: str, period: list[float]
+    metro_trips: pl.DataFrame, distrs: pl.DataFrame, pop_trips: pl.DataFrame, graph_dir: str, period: list[float]
 ):
     if not os.path.isdir(graph_dir):
         os.makedirs(graph_dir)
     # Global departure-time distribution.
     fig, ax = mpl.get_figure(fraction=0.8)
     bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 15 / 60)
-    ax.hist(
-        distrs["departure_time"] / 3600,
-        bins=list(bins),
-        weights=distrs["weight"],
-        density=True,
-        cumulative=True,
-        histtype="step",
+    counts, bin_edges = np.histogram(
+        distrs["departure_time"] / 3600, bins, density=True, weights=distrs["weight"],
+    )
+    ax.step(
+        bin_edges[:-1],
+        np.cumsum(counts) / np.sum(counts),
+        where="post",
         alpha=0.7,
         color=mpl.CMP(0),
         label="Travel Survey",
     )
-    ax.hist(
-        metro_trips["departure_time"] / 3600,
-        bins=list(bins),
-        density=True,
-        cumulative=True,
-        histtype="step",
+    counts, bin_edges = np.histogram(
+        metro_trips["departure_time"] / 3600, bins, density=True
+    )
+    ax.step(
+        bin_edges[:-1],
+        np.cumsum(counts) / np.sum(counts),
+        where="post",
         alpha=0.7,
         color=mpl.CMP(1),
         label="METROPOLIS2",
+    )
+    counts, bin_edges = np.histogram(
+        pop_trips["departure_time"] / 3600, bins, density=True
+    )
+    ax.step(
+        bin_edges[:-1],
+        np.cumsum(counts) / np.sum(counts),
+        where="post",
+        alpha=0.7,
+        color=mpl.CMP(2),
+        label="Synthetic population",
     )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
@@ -361,25 +360,38 @@ def make_graphs(
     fig.savefig(os.path.join(graph_dir, "all_departure_times_hist.pdf"))
     # Global departure-time density.
     fig, ax = mpl.get_figure(fraction=0.8)
-    bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 15 / 60)
+    bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 30 / 60)
     ax.hist(
         distrs["departure_time"] / 3600,
         bins=list(bins),
         weights=distrs["weight"],
         density=True,
-        histtype="step",
+        histtype="bar",
         alpha=0.7,
         color=mpl.CMP(0),
         label="Travel Survey",
     )
-    ax.hist(
-        metro_trips["departure_time"] / 3600,
-        bins=list(bins),
-        density=True,
-        histtype="step",
+    counts, bin_edges = np.histogram(
+        metro_trips["departure_time"] / 3600, bins, density=True
+    )
+    ax.step(
+        bin_edges[:-1],
+        counts,
+        where="post",
         alpha=0.7,
         color=mpl.CMP(1),
         label="METROPOLIS2",
+    )
+    counts, bin_edges = np.histogram(
+        pop_trips["departure_time"] / 3600, bins, density=True
+    )
+    ax.step(
+        bin_edges[:-1],
+        counts,
+        where="post",
+        alpha=0.7,
+        color=mpl.CMP(2),
+        label="Synthetic population",
     )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
@@ -389,31 +401,32 @@ def make_graphs(
     ax.grid()
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "all_departure_times_density_hist.pdf"))
-    # Departure-time distribution by category.
-    distrs_dict = distrs.partition_by("category", as_dict=True, include_key=False)
+    # Departure-time distribution by cluster.
+    distrs_dict = distrs.partition_by("cluster", as_dict=True, include_key=False)
+    bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 15 / 60)
     for (cat,), metro_df in metro_trips.partition_by(
-        "category", as_dict=True, include_key=False
+        "cluster", as_dict=True, include_key=False
     ).items():
         this_distr = distrs_dict[(cat,)]
         fig, ax = mpl.get_figure(fraction=0.8)
-        bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 15 / 60)
-        ax.hist(
-            this_distr["departure_time"] / 3600,
-            bins=list(bins),
-            weights=this_distr["weight"],
-            density=True,
-            cumulative=True,
-            histtype="step",
+        counts, bin_edges = np.histogram(
+            this_distr["departure_time"] / 3600, bins, density=True, weights=this_distr["weight"],
+        )
+        ax.step(
+            bin_edges[:-1],
+            np.cumsum(counts) / np.sum(counts),
+            where="post",
             alpha=0.7,
             color=mpl.CMP(0),
             label="Travel Survey",
         )
-        ax.hist(
-            metro_df["departure_time"] / 3600,
-            bins=list(bins),
-            density=True,
-            cumulative=True,
-            histtype="step",
+        counts, bin_edges = np.histogram(
+            metro_df["departure_time"] / 3600, bins, density=True
+        )
+        ax.step(
+            bin_edges[:-1],
+            np.cumsum(counts) / np.sum(counts),
+            where="post",
             alpha=0.7,
             color=mpl.CMP(1),
             label="METROPOLIS2",
@@ -426,6 +439,52 @@ def make_graphs(
         ax.grid()
         fig.tight_layout()
         fig.savefig(os.path.join(graph_dir, f"departure_times_hist_{cat}.pdf"))
+    # 2 by 2 grid with the first 4 clusters.
+    bins = np.arange(period[0] / 3600, (period[1] + 1.0) / 3600, 30 / 60)
+    fig, axes = plt.subplots(2, 2, figsize=mpl.set_size(fraction=1.0), sharex="col", sharey="row")
+    for i in range(4):
+        ax = axes.flat[i]
+        this_distr = distrs_dict[(i,)]
+        ax.hist(
+            this_distr["departure_time"] / 3600,
+            bins=list(bins),
+            weights=this_distr["weight"],
+            density=True,
+            histtype="bar",
+            alpha=0.7,
+            color=mpl.CMP(0),
+            label="Travel Survey",
+        )
+        counts, bin_edges = np.histogram(
+            metro_trips.filter(pl.col("cluster") == i)["departure_time"] / 3600, bins, density=True
+        )
+        ax.step(
+            bin_edges[:-1],
+            counts,
+            where="post",
+            alpha=0.7,
+            color=mpl.CMP(1),
+            label="METROPOLIS2",
+        )
+        counts, bin_edges = np.histogram(
+            pop_trips.filter(pl.col("cluster") == i)["departure_time"] / 3600, bins, density=True
+        )
+        ax.step(
+            bin_edges[:-1],
+            counts,
+            where="post",
+            alpha=0.7,
+            color=mpl.CMP(2),
+            label="Synthetic population",
+        )
+        ax.set_xlim(period[0] / 3600, period[1] / 3600)
+        ax.set_ylim(bottom=0)
+        ax.grid()
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+    fig.supxlabel("Departure time (h)")
+    fig.supylabel("Cumulative density")
+    fig.tight_layout()
+    fig.savefig(os.path.join(graph_dir, "departure_times_hist_grid.pdf"))
 
 
 if __name__ == "__main__":
@@ -474,10 +533,10 @@ if __name__ == "__main__":
         config["travel_survey"]["departure_time_distribution"]["cluster_filename"]
     )
 
-    trips = classify_trips(trips, centers)
+    trips = label_trips(trips, centers)
 
     _, mean_dist = cramervonmises_distance(
-        trips.select("category", "departure_time").collect(), distrs
+        trips.select("cluster", "departure_time").collect(), distrs
     )
     print(
         f"Cramer-von Mises distance between synthetic population and travel survey: {mean_dist:.6f}"
@@ -495,7 +554,8 @@ if __name__ == "__main__":
     )
 
     graph_dir = os.path.join(config["graph_directory"], "calibration.departure_time_calibration")
-    make_graphs(metro_trips, distrs, graph_dir, config["run"]["period"])
+    pop_trips = trips.select("cluster", "departure_time").collect()
+    make_graphs(metro_trips, distrs, pop_trips, graph_dir, config["run"]["period"])
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))

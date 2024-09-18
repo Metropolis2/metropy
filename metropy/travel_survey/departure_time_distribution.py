@@ -3,11 +3,10 @@ import time
 
 import numpy as np
 import polars as pl
-import gower
-import kmedoids
 
 import metropy.utils.io as metro_io
 import metropy.utils.mpl as mpl
+from metropy.utils.clustering import trip_clustering
 
 
 def read_egt(directory: str, period: list[float]):
@@ -59,7 +58,7 @@ def read_egt(directory: str, period: list[float]):
     lf = lf.with_columns(
         pl.col("DESTMOT_H9").replace_strict(PURPOSE_MAP).alias("following_purpose")
     )
-    # Filter out invalid routes.
+    # Filter out invalid tours.
     lf = lf.filter(
         pl.col("preceding_purpose").first().over("person_id") == "home",
         pl.col("following_purpose").last().over("person_id") == "home",
@@ -84,52 +83,30 @@ def read_egt(directory: str, period: list[float]):
 
 
 def classify_trips(df: pl.DataFrame):
-    print("Computing Gower distance between trips...")
-    variables = [
-        "preceding_purpose",
-        "following_purpose",
-        "od_distance",
-        "area_origin",
-        "area_destination",
-        "departement_origin",
-        "departement_destination",
-    ]
-    x = df.select(variables).to_pandas()
-    dists = gower.gower_matrix(
-        x,
-        cat_features=[True, True, False, True, True, True, True],
-    )
-    print("Classifying trips in categories...")
-    cluster_size = 1200
-    nb_clusters = len(x) // cluster_size
-    clustering = kmedoids.KMedoids(nb_clusters, method="fasterpam").fit(dists)
-    centers = pl.from_pandas(x.loc[clustering.medoid_indices_]).with_columns(
-        category=pl.int_range(nb_clusters, eager=True)
-    )
+    labels, centers = trip_clustering(df.lazy(), cluster_size=2000)
     df = df.select(
-        pl.Series(clustering.labels_).alias("category"),
+        pl.Series(labels).alias("cluster"),
         "departure_time",
         "weight",
     )
-    print("Number of trips classified: {:,}".format(len(df)))
     return df, centers
 
 
 def make_graphs(df: pl.DataFrame, period: list[float], graph_dir: str):
-    tds_by_category = df.partition_by("category", include_key=False, as_dict=True)
+    tds_by_cluster = df.partition_by("cluster", include_key=False, as_dict=True)
     # Cumulative density.
     fig, ax = mpl.get_figure(fraction=0.8)
     width = 0.25
     bins = np.arange(period[0] / 3600 - width / 2, period[1] / 3600 + width / 2 + 0.1, width)
     ax.hist(
-        [df["departure_time"] / 3600 for df in tds_by_category.values()],
+        [df["departure_time"] / 3600 for df in tds_by_cluster.values()],
         bins=list(bins),
         density=True,
-        weights=[df["weight"] for df in tds_by_category.values()],
+        weights=[df["weight"] for df in tds_by_cluster.values()],
         cumulative=True,
         histtype="step",
         alpha=0.7,
-        label=[str(key[0]) for key in tds_by_category.keys()],
+        label=[str(key[0]) for key in tds_by_cluster.keys()],
     )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
@@ -137,7 +114,7 @@ def make_graphs(df: pl.DataFrame, period: list[float], graph_dir: str):
     ax.set_ylabel("Cumulative density")
     ax.grid()
     fig.tight_layout()
-    fig.savefig(os.path.join(graph_dir, "cumulative_hist_by_category.pdf"))
+    fig.savefig(os.path.join(graph_dir, "cumulative_hist_by_cluster.pdf"))
 
 
 if __name__ == "__main__":

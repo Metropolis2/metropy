@@ -1,6 +1,7 @@
 # Base functions used by multiple scripts to generate simulation input.
 import os
 
+import numpy as np
 import polars as pl
 
 import metropy.utils.io as metro_io
@@ -87,7 +88,7 @@ def generate_vehicles(config: dict):
     return vehicles
 
 
-def generate_edges(edges: pl.LazyFrame, config: dict):
+def generate_edges(edges: pl.LazyFrame, config: dict, remove_parallel=True):
     print("Creating METROPOLIS edges...")
     # Convert edges' speed from km/h to m/s.
     edges = edges.with_columns(pl.col("speed") / 3.6)
@@ -110,14 +111,15 @@ def generate_edges(edges: pl.LazyFrame, config: dict):
         sort_columns.insert(0, "bottleneck_flow")
         sort_descending.insert(0, True)
     edges_df = edges.select(columns).collect()
-    # Remove parallel edges.
-    n0 = len(edges_df)
-    edges_df = edges_df.sort(sort_columns, descending=sort_descending).unique(
-        subset=["source", "target"], keep="first"
-    )
-    n1 = len(edges_df)
-    if n0 > n1:
-        print("Warning: Discarded {:,} parallel edges".format(n0 - n1))
+    if remove_parallel:
+        # Remove parallel edges.
+        n0 = len(edges_df)
+        edges_df = edges_df.sort(sort_columns, descending=sort_descending).unique(
+            subset=["source", "target"], keep="first"
+        )
+        n1 = len(edges_df)
+        if n0 > n1:
+            print("Warning: Discarded {:,} parallel edges".format(n0 - n1))
     edges_df = edges_df.sort("source")
     return edges_df
 
@@ -134,8 +136,15 @@ def read_trips(
     if road_only:
         trip_modes = metro_io.scan_dataframe(
             os.path.join(population_directory, "trip_modes.parquet")
-        ).filter(pl.col("mode") == "car_driver")
-        trips = trips.join(trip_modes, on="trip_id", how="semi")
+        )
+        # TODO. I should really predict modes at the tour level!
+        car_probs = trips.join(trip_modes, on="trip_id").group_by("tour_id").agg(
+            prob=pl.col("mode").eq("car_driver").mean()
+        ).collect()
+        rng = np.random.default_rng(13081996)
+        u = rng.random(size=len(car_probs))
+        car_tours = car_probs.filter(pl.col("prob") >= pl.Series(u))["tour_id"]
+        trips = trips.filter(pl.col("tour_id").is_in(car_tours))
     truck_filename = os.path.join(population_directory, "truck_trips.parquet")
     if os.path.isfile(truck_filename):
         truck_trips = metro_io.scan_dataframe(truck_filename)
@@ -170,18 +179,24 @@ def read_trips(
 
 
 def write_agents(run_directory: str, agents: pl.DataFrame, alts: pl.DataFrame, trips: pl.DataFrame):
+    input_directory = os.path.join(run_directory, "input")
+    if not os.path.isdir(input_directory):
+        os.makedirs(input_directory)
     print("Writing agents")
-    agents.write_parquet(os.path.join(run_directory, "input", "agents.parquet"), use_pyarrow=True)
+    agents.write_parquet(os.path.join(input_directory, "agents.parquet"), use_pyarrow=True)
     print("Writing alternatives")
-    alts.write_parquet(os.path.join(run_directory, "input", "alts.parquet"), use_pyarrow=True)
+    alts.write_parquet(os.path.join(input_directory, "alts.parquet"), use_pyarrow=True)
     print("Writing trips")
-    trips.write_parquet(os.path.join(run_directory, "input", "trips.parquet"), use_pyarrow=True)
+    trips.write_parquet(os.path.join(input_directory, "trips.parquet"), use_pyarrow=True)
 
 
 def write_road_network(run_directory: str, edges: pl.DataFrame, vehicles: pl.DataFrame):
+    input_directory = os.path.join(run_directory, "input")
+    if not os.path.isdir(input_directory):
+        os.makedirs(input_directory)
     print("Writing edges")
-    edges.write_parquet(os.path.join(run_directory, "input", "edges.parquet"), use_pyarrow=True)
+    edges.write_parquet(os.path.join(input_directory, "edges.parquet"), use_pyarrow=True)
     print("Writing vehicle types")
     vehicles.write_parquet(
-        os.path.join(run_directory, "input", "vehicles.parquet"), use_pyarrow=True
+        os.path.join(input_directory, "vehicles.parquet"), use_pyarrow=True
     )
