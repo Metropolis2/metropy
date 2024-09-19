@@ -310,7 +310,7 @@ def generate_agents(trips: pl.LazyFrame, parameters: dict, random_seed=None):
 
 
 def make_graphs(
-    metro_trips: pl.DataFrame, distrs: pl.DataFrame, pop_trips: pl.DataFrame, graph_dir: str, period: list[float]
+    metro_trips: pl.DataFrame, distrs: pl.DataFrame, graph_dir: str, period: list[float]
 ):
     if not os.path.isdir(graph_dir):
         os.makedirs(graph_dir)
@@ -338,17 +338,6 @@ def make_graphs(
         alpha=0.7,
         color=mpl.CMP(1),
         label="METROPOLIS2",
-    )
-    counts, bin_edges = np.histogram(
-        pop_trips["departure_time"] / 3600, bins, density=True
-    )
-    ax.step(
-        bin_edges[:-1],
-        np.cumsum(counts) / np.sum(counts),
-        where="post",
-        alpha=0.7,
-        color=mpl.CMP(2),
-        label="Synthetic population",
     )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
@@ -382,22 +371,11 @@ def make_graphs(
         color=mpl.CMP(1),
         label="METROPOLIS2",
     )
-    counts, bin_edges = np.histogram(
-        pop_trips["departure_time"] / 3600, bins, density=True
-    )
-    ax.step(
-        bin_edges[:-1],
-        counts,
-        where="post",
-        alpha=0.7,
-        color=mpl.CMP(2),
-        label="Synthetic population",
-    )
     ax.set_xlim(period[0] / 3600, period[1] / 3600)
     ax.set_xlabel("Departure time (h)")
     ax.set_ylim(bottom=0)
     ax.set_ylabel("Density")
-    ax.legend()
+    ax.legend(loc="center bottom")
     ax.grid()
     fig.tight_layout()
     fig.savefig(os.path.join(graph_dir, "all_departure_times_density_hist.pdf"))
@@ -465,17 +443,6 @@ def make_graphs(
             alpha=0.7,
             color=mpl.CMP(1),
             label="METROPOLIS2",
-        )
-        counts, bin_edges = np.histogram(
-            pop_trips.filter(pl.col("cluster") == i)["departure_time"] / 3600, bins, density=True
-        )
-        ax.step(
-            bin_edges[:-1],
-            counts,
-            where="post",
-            alpha=0.7,
-            color=mpl.CMP(2),
-            label="Synthetic population",
         )
         ax.set_xlim(period[0] / 3600, period[1] / 3600)
         ax.set_ylim(bottom=0)
@@ -554,8 +521,7 @@ if __name__ == "__main__":
     )
 
     graph_dir = os.path.join(config["graph_directory"], "calibration.departure_time_calibration")
-    pop_trips = trips.select("cluster", "departure_time").collect()
-    make_graphs(metro_trips, distrs, pop_trips, graph_dir, config["run"]["period"])
+    make_graphs(metro_trips, distrs, graph_dir, config["run"]["period"])
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
