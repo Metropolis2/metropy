@@ -8,8 +8,7 @@ import metropy.utils.io as metro_io
 
 def read_routes(filename: str, population_dir: str):
     print("Reading routes...")
-    #  df = metro_io.read_dataframe(filename, columns=["trip_id", "route"])
-    df = pl.read_parquet(filename, columns=["trip_id", "route"], n_rows=10000)
+    df = metro_io.read_dataframe(filename, columns=["trip_id", "route"])
     trips = metro_io.read_dataframe(
         os.path.join(population_dir, "trips.parquet"), columns=["person_id", "trip_id"]
     )

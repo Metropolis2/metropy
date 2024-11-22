@@ -66,6 +66,8 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 - Compute pollutant emissions and fuel consumption with the EMISENS model:
   `metropy.emissions.emisens`
 - Compute fuel consumption from free-flow routes: `metropy.emissions.fuel_consumption`
+- Compute pollutant concentration with a Gaussian Plume model: `metropy.emissions.dispersion`
+- Compute population exposure to pollution: `metropy.emissions.exposure`
 - Compare METROPOLIS2 free-flow travel times with travel-survey data:
   `metropy.travel_survey.free_flow_travel_time`
 - Estimate desired activity start time and duration from travel-survey data:
@@ -76,3 +78,5 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
 # Acknowledgments
 
 Many thanks to Kokouvi Joseph Djafon for his work on the calibration tools.
+
+Many thanks to Romuald Le Frioux for his work on METRO-TRACE (emissions, dispersion and exposure).

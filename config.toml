@@ -17,7 +17,7 @@ routing_exec = "./execs/routing_cli"
 tmp_directory = "./tmp/"
 
 # Directory where the run input / output are stored.
-run_directory = "./run/road_only"
+run_directory = "./run/main"
 
 # Path to the file where the imported edges of the road network are stored
 # (possible extensions: parquet, geojson, fgb, shp).
@@ -89,6 +89,8 @@ truck_simulation_ratio = 1.0
 period = [10_800, 97_200]
 # Time interval between two breakpoints in the travel-time functions (in seconds).
 recording_interval = 900.0
+# Number of iterations to run.
+nb_iterations = 50
 # Value of the smoothing factor for the learning model (weight of the simulated travel times).
 smoothing_factor = 0.02
 # Whether spillback is enabled.
@@ -114,6 +116,10 @@ truck_speed_limit = 90.0
 overtaking = true
 # Whether bottleneck congestion should be enabled (capacities must be specified).
 use_bottleneck = true
+# Walking speed in km/h.
+walking_speed = 4.0
+# Bicycle speed in km/h.
+bicycle_speed = 10.0
 
 [run.road_only]
 # Directory where the files for the road-only run are stored.
@@ -327,7 +333,9 @@ fleet_filename = "./data/parc/Donnees-sur-le-parc-de-vehicule-au-niveau-communal
 # Year of the vehicle fleet to be used.
 fleet_year = 2022
 # Path to the output file where the household vehicles are stored.
-output_filename = "./output/synthetic_population/vehicles.parquet"
+output_filename = "./output/synthetic_population_20pct/vehicles.parquet"
+# Optional file representing transition probabilities from one critair to another.
+evolution_matrix = "./data/parc/evolution_matrix.parquet"
 
 [synthetic_population.french_vehicle_fleet.car_types]
 # Conversion from fuel type + Crit'Air to European emission standard.
@@ -361,6 +369,8 @@ filename = "./output/synthetic_population/household_19.html"
 [france]
 # Path to the ADMIN-EXPRESS shapefile with the INSEE communes geometries.
 insee_filename = "./data/ADMIN-EXPRESS/1_DONNEES_LIVRAISON_2023-07-04/ADE_3-2_SHP_LAMB93_FXX/COMMUNE.shp"
+# Path to the ADMIN-EXPRESS shapefile with the INSEE arrondissements geometries.
+arrondissement_filename = "./data/ADMIN-EXPRESS/1_DONNEES_LIVRAISON_2023-07-04/ADE_3-2_SHP_LAMB93_FXX/ARRONDISSEMENT_MUNICIPAL.shp"
 # Path to the shapefile with the IRIS geometries.
 iris_filename = "./data/contours_iris_france/CONTOURS-IRIS.shp"
 
@@ -424,7 +434,7 @@ nb_waypoints = 150
 # Number of batches to be computed in parallel.
 # Ideally, the value should be the number of threads that you want to use.
 # If the value is too large, TomTom API might complain about exceeding the number of requests per second.
-nb_batches = 8
+nb_batches = 2
 # Road types which cannot be selected as origin or destination node for the OD pairs.
 # The edges whose `road_type` column value is equal to one of the given road type will be excluded
 # from the road network prior to selecting the origin and destination nodes.
@@ -553,6 +563,10 @@ maximum_capacity = 2200
 # Directory where the simulations are run.
 run_directory = "./run/departure_time_calibration/"
 
+[calibration.mode_calibration]
+# Directory where the simulations are run.
+run_directory = "./run/mode_calibration/"
+
 [travel_survey]
 # Path to the directory where the travel survey is stored.
 directory = "./data/travel_survey/egt/"
@@ -564,11 +578,21 @@ survey_type = "EGT"
 # Path to the file with the probabilities of desired start time and duration for work activities.
 desired_work_times_filename = "./output/travel_survey/desired_work_times.parquet"
 
+[travel_survey.draw_tstars]
+# Path to the file with the tstar probabilities.
+tstars_probs_filename = "./output/travel_survey/tstars_probs.parquet"
+
 [travel_survey.departure_time_distribution]
 # Path to the file with the departure time distributions.
 distribution_filename = "./output/travel_survey/departure_time_distributions.parquet"
 # Path to the file with the centers of the clusters.
 cluster_filename = "./output/travel_survey/departure_time_cluster_centers.parquet"
+
+[travel_survey.mode_shares]
+# Path to the file with the mode shares.
+mode_shares_filename = "./output/travel_survey/mode_shares.parquet"
+# Path to the file with the centers of the clusters.
+cluster_filename = "./output/travel_survey/mode_cluster_centers.parquet"
 
 [routing.opentripplanner]
 # Base URL of the OpenTripPlanner server instance.
@@ -595,7 +619,7 @@ batch_size = 200000
 gtfs_zipfile = "./data/IDFM-gtfs.zip"
 # Path to the output file with the public-transit flows
 # (possible extensions: parquet, geojson, fgb, shp).
-output_filename = "./output/public_transit/global_flows.parquet"
+output_filename = "./output/public_transit/flows_main.parquet"
 # If `true`, the public-transit flows are computed for all flows, not only the agents who took public transit.
 all_flows = false
 
@@ -674,20 +698,47 @@ emission_factor_file = "./data/emission_factors_france.csv"
 # List of pollutants to be computed.
 # Possible values: "CO", "NOx", "PM", "EC".
 # Specify "EC" (energy consumption) to also compute CO2 and fuel consumption.
-pollutants = ["CO", "NOx", "PM", "EC"]
+pollutants = ["NOx", "PM", "EC"]
 # Threshold of distance traveled (in kilometers) for cold emissions.
 cold_emissions_threshold = 11.33
-# Path to the output file where the emissions are stored
+# Interval of time (in seconds) to split emissions.
+interval = 360_000
+# Path to the output file where the trip-level emissions are stored
 # (possible extensions: Parquet, CSV).
-output_filename = "./output/emissions/emissions.parquet"
+trip_emissions = "./output/emissions/trip_emissions.parquet"
+# Path to the output file where the edge-level emissions are stored
+# (possible extensions: Parquet, CSV).
+edge_emissions = "./output/emissions/edge_emissions.parquet"
+
+[metro-trace]
+# Height and width of one cell of the grid used for pollution concentration and exposition (in meters).
+grid_resolution = 500
+# Filename where the gridded emissions are stored.
+gridded_emissions_filename = "./output/emissions/gridded_emissions.parquet"
+# Filename where the pollutant concentrations are stored.
+concentration_filename = "./output/emissions/concentrations.parquet"
+# Filename where the population dispersion is stored.
+population_dispersion_filename = "./output/emissions/population_dispersion.parquet"
+# Filename where the population exposure is stored.
+exposure_filename = "./output/emissions/exposure.parquet"
+# Average number of years lost for someone dying from air pollution.
+average_years_lost = 10.4
+# Price of a year of life lost.
+year_of_life_lost_price = 106_985
+
+[metro-trace.exposure_probs]
+# Probability of dying when being exposed to some quantity of pollutants (expressed in μg / m3 / h).
+NO2 = 6.224812e-10
+PM = 5.077455e-9
 
 [fuel_consumption]
 # Path to the output file where the fuel consumptions are stored.
-output_filename = "./output/emissions/ff_fuel_consumption.parquet"
+output_filename = "./output/emissions/ff_fuel_consumption2.parquet"
 
 [demand]
 # List of modes in the simulations.
-modes = ["car_driver", "car_passenger", "motorcycle", "public_transit", "bicycle", "walking"]
+# modes = ["car_driver", "car_passenger", "motorcycle", "public_transit", "bicycle", "walking"]
+modes = ["car_driver", "car_passenger", "public_transit", "bicycle", "walking"]
 
 [demand.predict_modes]
 output_graphs = true
