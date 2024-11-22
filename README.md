@@ -74,6 +74,7 @@ This repository contains Python tools to work with METROPOLIS2 input and output 
   `metropy.travel_survey.desired_times`
 - Retrieve the departure-time distribution of trips in travel-survey data:
   `metropy.travel_survey.departure_time_distribution`
+- Compute congestion results for each edge: `metropy.road_results.edge_values`
 
 # Acknowledgments
 

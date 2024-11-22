@@ -65,18 +65,25 @@ def read_edges(
     return edges
 
 
-def generate_vehicles(config: dict):
+def generate_vehicles(config: dict, lez_edges=None):
     print("Creating vehicle types...")
     vehicles = [
+        # Vehicle for car driver trips.
         {
             "vehicle_id": 1,
             "headway": config.get("car_headway", 10.0) / config.get("simulation_ratio", 1.0),
             "pce": config.get("car_pce", 1.0) / config.get("simulation_ratio", 1.0),
         },
+        # Vehicle for car passenger trips.
+        {
+            "vehicle_id": 2,
+            "headway": 0.0,
+            "pce": 0.0,
+        },
     ]
     if "truck_headway" in config and "truck_pce" in config:
         truck = {
-            "vehicle_id": 2,
+            "vehicle_id": 3,
             "headway": config["truck_headway"] / config.get("truck_simulation_ratio", 1.0),
             "pce": config["truck_pce"] / config.get("truck_simulation_ratio", 1.0),
         }
@@ -84,6 +91,24 @@ def generate_vehicles(config: dict):
             truck["speed_function.type"] = "UpperBound"
             truck["speed_function.upper_bound"] = config["truck_speed_limit"] / 3.6
         vehicles.append(truck)
+    if lez_edges is not None:
+        assert isinstance(lez_edges, list)
+        vehicles.extend([
+            # Vehicle for car driver trips banned from the LEZ.
+            {
+                "vehicle_id": 4,
+                "headway": config.get("car_headway", 10.0) / config.get("simulation_ratio", 1.0),
+                "pce": config.get("car_pce", 1.0) / config.get("simulation_ratio", 1.0),
+                "restricted_edges": lez_edges,
+            },
+            # Vehicle for car passenger trips banned from the LEZ.
+            {
+                "vehicle_id": 5,
+                "headway": 0.0,
+                "pce": 0.0,
+                "restricted_edges": lez_edges,
+            },
+        ])
     vehicles = pl.DataFrame(vehicles)
     return vehicles
 
@@ -125,33 +150,59 @@ def generate_edges(edges: pl.LazyFrame, config: dict, remove_parallel=True):
 
 
 def read_trips(
-    population_directory: str, road_split_filename: str, period: list[float], road_only=False
+    population_directory: str,
+    road_split_filename: str,
+    period: list[float],
+    include_trucks=True,
+    road_only=False,
+    modes: list[str] | None = None,
 ):
     print("Reading trips")
     trips = (
         metro_io.scan_dataframe(os.path.join(population_directory, "trips.parquet"))
-        .rename({"person_id": "agent_id"})
-        .with_columns(is_truck=False)
+        .with_columns(is_truck=False, agent_id=pl.col("person_id"))
     )
     if road_only:
         trip_modes = metro_io.scan_dataframe(
             os.path.join(population_directory, "trip_modes.parquet")
         )
         # TODO. I should really predict modes at the tour level!
-        car_probs = trips.join(trip_modes, on="trip_id").group_by("tour_id").agg(
-            prob=pl.col("mode").eq("car_driver").mean()
-        ).sort("tour_id").collect()
+        car_probs = (
+            trips.join(trip_modes, on="trip_id")
+            .group_by("tour_id")
+            .agg(prob=pl.col("mode").eq("car_driver").mean())
+            .sort("tour_id")
+            .collect()
+        )
         rng = np.random.default_rng(13081996)
         u = rng.random(size=len(car_probs))
         car_tours = car_probs.filter(pl.col("prob") >= pl.Series(u))["tour_id"]
         trips = trips.filter(pl.col("tour_id").is_in(car_tours))
-    truck_filename = os.path.join(population_directory, "truck_trips.parquet")
-    if os.path.isfile(truck_filename):
-        truck_trips = metro_io.scan_dataframe(truck_filename)
-        trips = pl.concat(
-            (trips, truck_trips.with_columns(is_truck=True)),
-            how="diagonal_relaxed",
+    if modes is not None:
+        trip_modes = metro_io.scan_dataframe(
+            os.path.join(population_directory, "trip_modes.parquet")
         )
+        # TODO. I should really predict modes at the tour level!
+        trips = trips.join(trip_modes, on="trip_id")
+        main_tour_modes = (
+            trips.group_by("tour_id", "mode")
+            .agg(pl.col("od_distance").sum(), pl.col("trip_id").first())
+            .sort("tour_id", "od_distance", "trip_id")
+            .group_by("tour_id")
+            .agg(main_mode=pl.col("mode").last())
+        )
+        trips = trips.join(main_tour_modes, on="tour_id", how="left")
+        trips = trips.filter(pl.col("main_mode").is_in(modes))
+    if include_trucks:
+        truck_filename = os.path.join(population_directory, "truck_trips.parquet")
+        if os.path.isfile(truck_filename):
+            truck_trips = metro_io.scan_dataframe(truck_filename)
+            trips = pl.concat(
+                (trips, truck_trips.with_columns(is_truck=True)),
+                how="diagonal_relaxed",
+            )
+        else:
+            print("Warning: No truck trips to read.")
     # Remove trips with origin = destination.
     trips = trips.filter(
         (pl.col("origin_lng") != pl.col("destination_lng"))
@@ -197,6 +248,4 @@ def write_road_network(run_directory: str, edges: pl.DataFrame, vehicles: pl.Dat
     print("Writing edges")
     edges.write_parquet(os.path.join(input_directory, "edges.parquet"), use_pyarrow=True)
     print("Writing vehicle types")
-    vehicles.write_parquet(
-        os.path.join(input_directory, "vehicles.parquet"), use_pyarrow=True
-    )
+    vehicles.write_parquet(os.path.join(input_directory, "vehicles.parquet"), use_pyarrow=True)
