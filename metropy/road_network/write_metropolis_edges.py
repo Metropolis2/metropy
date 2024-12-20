@@ -3,88 +3,115 @@ This script takes as input a GeoDataFrame of edges and write a CSV or Parquet fi
 the METROPOLIS2 format.
 """
 
-import sys
 import os
 import time
-import tomllib
 
 import polars as pl
 
 import metropy.utils.io as metro_io
 
 
-def read_edges(input_file):
+def read_edges(
+    edge_filename: str,
+    edge_main_filename: None | str,
+    edge_penalties_filename: None | str,
+    edge_capacities_filename: None | str,
+):
     print("Reading edges")
-    edges = pl.from_pandas(metro_io.read_geodataframe(input_file).drop(columns="geometry"))
-    if "main" in edges.columns:
-        edges = edges.filter("main")
+    edges = metro_io.scan_dataframe(edge_filename)
+    if edge_main_filename is not None:
+        edges_main = metro_io.scan_dataframe(edge_main_filename).filter("main")
+        edges = edges.join(edges_main, on=pl.col("edge_id"), how="semi")
+    if edge_penalties_filename is not None:
+        edges_penalties = metro_io.scan_dataframe(edge_penalties_filename).rename(
+            {"additive_penalty": "constant_travel_time"}
+        )
+        columns = edges_penalties.collect_schema().names()
+        assert (
+            "constant_travel_time" in columns
+        ), "No column `additive_penalty` in the edges penalties file"
+        if "speed" in columns:
+            edges = edges.join(edges_penalties, on="edge_id", how="left").with_columns(
+                pl.col("constant_travel_time").fill_null(pl.lit(0.0)),
+                pl.col("speed").fill_null(pl.col("speed_limit")),
+            )
+        else:
+            print("Warning: no `speed` column in the edges penalties, using additive penalty only")
+            edges = edges.join(edges_penalties, on="edge_id", how="left").with_columns(
+                pl.col("constant_travel_time").fill_null(pl.lit(0.0)),
+                pl.col("speed_limit").alias("speed"),
+            )
     else:
-        print("Warning: no 'main' column in edges, selecting all edges")
-    edges = edges.sort("edge_id")
+        edges = edges.with_columns(constant_travel_time=pl.lit(0.0), speed=pl.col("speed_limit"))
+    if edge_capacities_filename is not None:
+        edge_capacities = metro_io.scan_dataframe(edge_capacities_filename).select(
+            "edge_id", "capacity"
+        )
+        edges = edges.join(edge_capacities, on="edge_id", how="left")
     return edges
 
 
-def generate_road_network(edges):
-    print("Creating Metropolis road network")
-    edges = edges.with_columns(pl.col("speed_limit") / 3.6)
-    edges = edges.with_columns(pl.lit(True).alias("overtaking"))
-    columns = ["edge_id", "source", "target", "speed_limit", "length", "lanes", "overtaking"]
-    if "capacity" in edges.columns:
-        edges = edges.with_columns((pl.col("capacity") / 3600.0).alias("bottleneck_flow"))
+def generate_edges(edges: pl.LazyFrame, config: dict, remove_parallel=True):
+    print("Creating METROPOLIS edges...")
+    # Convert edges' speed from km/h to m/s.
+    edges = edges.with_columns(pl.col("speed") / 3.6)
+    edges = edges.with_columns(pl.lit(config.get("overtaking", True)).alias("overtaking"))
+    columns = [
+        "edge_id",
+        "source",
+        "target",
+        "speed",
+        "length",
+        "lanes",
+        "overtaking",
+        "constant_travel_time",
+    ]
+    sort_columns = ["lanes", "speed", "length"]
+    sort_descending = [True, True, False]
+    if config.get("use_bottleneck", False):
+        edges = edges.with_columns(bottleneck_flow=pl.col("capacity") / 3600)
         columns.append("bottleneck_flow")
-    # TODO: Add penalties
-    edges = edges.select(columns)
-    return edges
+        sort_columns.insert(0, "bottleneck_flow")
+        sort_descending.insert(0, True)
+    edges_df = edges.select(columns).collect()
+    if remove_parallel:
+        # Remove parallel edges.
+        n0 = len(edges_df)
+        edges_df = edges_df.sort(sort_columns, descending=sort_descending).unique(
+            subset=["source", "target"], keep="first"
+        )
+        n1 = len(edges_df)
+        if n0 > n1:
+            print("Warning: Discarded {:,} parallel edges".format(n0 - n1))
+    edges_df = edges_df.sort("source")
+    return edges_df
 
 
 if __name__ == "__main__":
+    from metropy.config import read_config, check_keys
+
+    config = read_config()
+    mandatory_keys = [
+        "clean_edges_file",
+        "run_directory",
+    ]
+    check_keys(config, mandatory_keys)
     t0 = time.time()
 
-    if len(sys.argv) == 1:
-        # Read the config from the default path.
-        config_path = "config.toml"
-    else:
-        if len(sys.argv) == 3 and sys.argv[1] == "--config":
-            config_path = sys.argv[2]
-        else:
-            raise SystemExit(f"Usage: {sys.argv[0]} [--config <path_to_config.toml>]")
+    if not os.path.isdir(os.path.join(config["run_directory"], "input")):
+        os.makedirs(os.path.join(config["run_directory"], "input"))
 
-    if not os.path.exists(config_path):
-        raise Exception(f"Cannot find config file `{config_path}`")
+    edges = read_edges(
+        config["clean_edges_file"],
+        config.get("routing", dict).get("road_split", dict).get("main_edges_filename"),
+        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("capacities_filename"),
+    )
 
-    with open(config_path, "rb") as f:
-        try:
-            config = tomllib.load(f)
-        except Exception as e:
-            raise Exception(f"Cannot parse config:\n{e}")
-
-    input_file = config.get("clean_edges_file")
-    if input_file is None:
-        raise Exception("Missing key `clean_edges_file` in config")
-    if not os.path.exists(input_file):
-        raise Exception(f"Edges input file not found:\n`{input_file}`")
-
-    if not "metropolis" in config:
-        raise Exception("Missing table `metropolis` in config")
-    run_dir = config["metropolis"].get("input_directory")
-    if run_dir is None:
-        raise Exception("Missing key `metropolis.input_directory` in config")
-    input_format = config["metropolis"].get("format", "Parquet")
-
-    if not os.path.isdir(run_dir):
-        os.makedirs(run_dir)
-
-    edges = read_edges(input_file)
-
-    edges = generate_road_network(edges)
+    edges = generate_edges(edges, config["run"])
 
     print("Writing edges")
-    if input_format.lower() == "parquet":
-        edges.write_parquet(os.path.join(run_dir, "edges.parquet"))
-    elif input_format.lower() == "csv":
-        edges.write_csv(os.path.join(run_dir, "edges.csv"))
-    else:
-        raise Exception(f'Unrecognized file format `metropolis.format`="{input_format}"')
+    edges.write_parquet(os.path.join(config["run_directory"], "input", "edges.parquet"))
 
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
