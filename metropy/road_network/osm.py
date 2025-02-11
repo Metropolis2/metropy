@@ -144,7 +144,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
     # Length distribution hist.
     fig, ax = mpl.get_figure(fraction=0.8)
     bins = np.logspace(np.log(gdf["length"].min()), np.log(gdf["length"].max()), 50, base=np.e)
-    ax.hist(gdf["length"], bins=bins, density=True, color=mpl.CMP(0))
+    ax.hist(gdf["length"], bins=list(bins), density=True, color=mpl.CMP(0))
     ax.set_xscale("log")
     ax.set_xlabel("Length (meters, log scale)")
     ax.set_ylabel("Density")
@@ -157,7 +157,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
         5.0,
     )
-    ax.hist(gdf["speed_limit"], bins=bins, density=True, color=mpl.CMP(0))
+    ax.hist(gdf["speed_limit"], bins=list(bins), density=True, color=mpl.CMP(0))
     ax.set_xlabel("Speed limit (km/h)")
     ax.set_ylabel("Density")
     fig.tight_layout()
@@ -169,7 +169,7 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         np.ceil(gdf["speed_limit"].max() / 5.0) * 5.0 + 2.5 + 1.0,
         5.0,
     )
-    ax.hist(gdf["speed_limit"], bins=bins, density=True, weights=gdf["length"], color=mpl.CMP(0))
+    ax.hist(gdf["speed_limit"], bins=list(bins), density=True, weights=gdf["length"], color=mpl.CMP(0))
     ax.set_xlabel("Speed limit (km/h)")
     ax.set_ylabel("Density (weighted by edge length)")
     fig.tight_layout()
@@ -213,8 +213,8 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         else:
             lengths[key] = value
     ax.pie(
-        lengths.values(),
-        labels=lengths.keys(),
+        list(lengths.values()),
+        labels=list(lengths.keys()),
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
@@ -235,8 +235,8 @@ def plot_variables(gdf: gpd.GeoDataFrame, graph_dir: str):
         else:
             lengths[key] = value
     ax.pie(
-        lengths.values(),
-        labels=lengths.keys(),
+        list(lengths.values()),
+        labels=list(lengths.keys()),
         autopct=lambda p: f"{p:.1f}\\%",
         pctdistance=0.75,
         labeldistance=1.05,
@@ -285,7 +285,7 @@ class UrbanAreasReader(osmium.SimpleHandler):
         polygons = gpd.GeoSeries.from_wkb(self.areas_wkb)
         #  gdf = gpd.GeoDataFrame(geometry=polygons, crs="epsg:4326")
         #  gdf.to_parquet("output/road_network/urban_areas.parquet")
-        return polygons.unary_union
+        return polygons.union_all()
 
 
 class NodeReader(osmium.SimpleHandler):
@@ -493,6 +493,8 @@ class EdgeReader(osmium.SimpleHandler):
                 elif node.ref in self.give_way_signs_ids:
                     direction = self.give_way_signs_ids[node.ref]
                     give_way_signs.append((direction, Point(node.lon, node.lat)))
+            else:
+                return
         geometry = LineString(coords)
         if traffic_signals:
             source_geom = Point(coords[0])

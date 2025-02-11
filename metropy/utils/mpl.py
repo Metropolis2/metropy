@@ -6,7 +6,7 @@ COLOR_LIST = mpl.colormaps["Set3"].colors
 
 PARAMETERS = {
     "text.usetex": True,
-    "text.latex.preamble": r"\usepackage{amsmath}",
+    "text.latex.preamble": r"\usepackage{amsmath}\usepackage{siunitx}\usepackage{eurosym}",
     "figure.dpi": 600,
     "font.size": 12,
     "font.serif": [],

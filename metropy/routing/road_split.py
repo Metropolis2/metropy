@@ -738,8 +738,10 @@ if __name__ == "__main__":
         config["clean_edges_file"],
         config["crs"],
         config["routing"]["road_split"],
-        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
-        config.get("run", dict).get("truck_speed_limit"),
+        config.get("calibration", dict())
+        .get("free_flow_calibration", dict())
+        .get("output_filename"),
+        config.get("run", dict()).get("truck_speed_limit"),
     )
 
     df = find_origin_destination_node(nodes, edges)

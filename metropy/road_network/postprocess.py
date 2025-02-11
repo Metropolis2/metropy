@@ -77,14 +77,6 @@ def set_default_values(gdf, config):
         raise Exception("Invalid table `postprocess_network.default_nb_lanes` in config")
     gdf["lanes"] = gdf["lanes"].fillna(gdf["road_type"].map(nb_lanes))
     assert not gdf["lanes"].isna().any()
-    # Set default bottleneck capacity.
-    #  capacities = config["default_capacity"]
-    #  if not isinstance(capacities, dict):
-    #  raise Exception("Invalid table `postprocess_network.default_capacity` in config")
-    #  if "capacity" in gdf.columns:
-    #  gdf["capacity"] = gdf["capacity"].fillna(gdf["road_type"].map(capacities))
-    #  else:
-    #  gdf["capacity"] = gdf["road_type"].map(capacities)
     return gdf
 
 

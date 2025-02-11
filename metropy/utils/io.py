@@ -10,7 +10,7 @@ def scan_dataframe(filename: str, **kwargs):
     if not os.path.isfile(filename):
         raise Exception(f"File not found: `{filename}`")
     if filename.endswith(".parquet"):
-        lf = pl.scan_parquet(filename, **kwargs)
+        lf = pl.read_parquet(filename, use_pyarrow=True, **kwargs).lazy()
     elif filename.endswith(".csv"):
         lf = pl.scan_csv(filename, **kwargs)
     else:
