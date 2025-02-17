@@ -593,7 +593,8 @@ if __name__ == "__main__":
     df = read_pt_itineraries(config["routing"]["opentripplanner"]["output_filename"])
     if not config["public_transit"]["analyze_flows"].get("all_flows", False):
         assert "run_directory" in config, "Missing key `run_directory` in config"
-        df = filter_pt_trips(df, config["run_directory"], 2)
+        pt_alt_id = config["demand"]["modes"].index("public_transit")
+        df = filter_pt_trips(df, config["run_directory"], pt_alt_id)
     df = df.collect()
     print_stats_and_plot_graphs(
         df, config["public_transit"]["analyze_flows"]["gtfs_zipfile"], graph_dir
