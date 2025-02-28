@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     df_edges = read_edges(
         config["clean_edges_file"],
-        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("calibration", dict()).get("edge_penalties", dict()).get("output_filename"),
     )
 
     lf = merge_with_edges(df_routes, df_edges)

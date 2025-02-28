@@ -26,7 +26,7 @@ def read_metropolis_routes(filename: str, edges: pl.DataFrame):
         .sort("trip_id", "entry_time")
         .select(
             "trip_id",
-            pl.col("edge_id").shift(-1, fill_value=pl.col("edge_id")).over("trip_id"),
+            pl.col("edge_id").shift(-1).over("trip_id").fill_null("edge_id"),
             "ff_time",
             (pl.col("travel_time") - pl.col("ff_time")).alias("congested_time"),
         )
@@ -218,7 +218,7 @@ if __name__ == "__main__":
         "clean_edges_file",
         "capacities_filename",
         "run.tomtom_routes.directory",
-        "calibration.post_map_matching.output_filename",
+        "calibration.map_matching.output_filename",
         "calibration.variables",
         "calibration.capacities_calibration.explanatory_variables",
         "calibration.capacities_calibration.interaction_variables",
@@ -238,7 +238,9 @@ if __name__ == "__main__":
     )
 
     tomtom_df = metro_calib.read_tomtom_paths(
-        config["calibration"]["post_map_matching"]["output_filename"], route_df
+        config["calibration"]["tomtom"]["output_filename"],
+        config["calibration"]["map_matching"]["output_filename"],
+        route_df,
     )
 
     edges_charac = metro_io.read_dataframe(config["clean_edges_file"])
