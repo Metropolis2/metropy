@@ -493,9 +493,6 @@ motorway_link = "motorway_link"
 motorway = "motorway"
 
 [calibration.free_flow_calibration]
-# Path to the output file where the edge penalties are stored
-# (possible extensions: Parquet, CSV).
-output_filename = "./output/road_network/edges_penalties.parquet"
 # Path to the output file where the LASSO coefficients are stored
 # (possible extensions: Parquet, CSV).
 coef_filename = "./output/calibration/free_flow_lasso_coef.parquet"
@@ -536,6 +533,13 @@ additive_penalty_lower_bound = 0
 road_speed_lower_bound = 10
 # Upper bound for the global speed on an edge (in km/h).
 global_speed_upper_bound = 140
+
+[calibration.edge_penalties]
+# Path to the output file where the edge penalties are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/road_network/edges_penalties.parquet"
+# If `true`, create graphs comparing the free-flow travel time in TomTom and in the simulation.
+plot_graphs = true
 
 [calibration.capacities_calibration]
 # List of variables to be used in the regression.

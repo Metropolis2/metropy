@@ -5,9 +5,11 @@ from sklearn.linear_model import LassoCV
 import metropy.utils.io as metro_io
 
 
-def read_tomtom_paths(input_file: str, route_df: pl.DataFrame | None = None):
+def read_tomtom_paths(tomtom_filename: str, matching_filename: str, route_df: pl.DataFrame | None = None):
     print("Reading TomTom paths...")
-    lf = metro_io.scan_dataframe(input_file)
+    tomtom = metro_io.scan_dataframe(tomtom_filename)
+    matching = metro_io.scan_dataframe(matching_filename)
+    lf = tomtom.join(matching, on="id", how="inner")
     if route_df is not None:
         # Select only the TomTom requests for which the route was computed.
         lf = lf.join(
@@ -17,7 +19,7 @@ def read_tomtom_paths(input_file: str, route_df: pl.DataFrame | None = None):
         lf.sort("id")
         .select(
             "id",
-            "cpath",
+            "path",
             (pl.col("tt_historical") - pl.col("tt_no_traffic"))
             .alias("congested_time")
             .cast(pl.Float64),
@@ -27,6 +29,7 @@ def read_tomtom_paths(input_file: str, route_df: pl.DataFrame | None = None):
     )
     if route_df is not None:
         assert len(df) == route_df["trip_id"].n_unique()
+    print(f"Number of paths read: {len(df):,}")
     return df
 
 
