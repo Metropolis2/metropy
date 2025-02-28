@@ -129,7 +129,9 @@ if __name__ == "__main__":
     edges = metro_run.read_edges(
         config["clean_edges_file"],
         None,
-        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("calibration", dict())
+        .get("free_flow_calibration", dict())
+        .get("output_filename"),
         config.get("capacities_filename"),
     )
     edges = metro_run.generate_edges(edges, config["run"])

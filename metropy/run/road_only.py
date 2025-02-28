@@ -146,8 +146,10 @@ if __name__ == "__main__":
 
     edges = metro_run.read_edges(
         config["clean_edges_file"],
-        config.get("routing", dict).get("road_split", dict).get("main_edges_filename"),
-        config.get("calibration", dict).get("free_flow_calibration", dict).get("output_filename"),
+        config.get("routing", dict()).get("road_split", dict()).get("main_edges_filename"),
+        config.get("calibration", dict())
+        .get("free_flow_calibration", dict())
+        .get("output_filename"),
         config.get("capacities_filename"),
     )
     trips = metro_run.read_trips(
