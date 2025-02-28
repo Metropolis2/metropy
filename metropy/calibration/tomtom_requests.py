@@ -11,7 +11,7 @@ from tqdm import tqdm
 import metropy.utils.io as metro_io
 
 BASE_URL = "https://api.tomtom.com/routing/1/calculateRoute/"
-PARAMS = {"computeTravelTimeFor": "all", "traffic": True}
+PARAMS = {"computeTravelTimeFor": "all", "traffic": "true"}
 
 
 def read_edges(input_file: str):

@@ -442,25 +442,16 @@ excluded_road_types = ["motorway", "motorway_link", "trunk", "trunk_link"]
 
 [calibration.map_matching]
 # Path to the output file where the map matching results are stored.
-# This must be a CSV file.
-output_filename = "./output/calibration/fmm_results.csv"
-# Number of candidates to be considered as valid match.
-# Larger values provide better match quality but increase running time.
-# Recommended value: 8 or more.
-nb_candidates = 20
-# GPS error of the GPS points, in meters.
-# The GPS points are the coordinates from the routing results.
-# Recommended value: 5.
-gps_error = 5
+# (possible extensions: parquet).
+output_filename = "./output/calibration/match_results.parquet"
 # Search radius, in meters.
 # Larger values are more likely to result in a positive match but increase running time.
 # Recommended value: between 30 and 200.
 radius = 100
-
-[calibration.post_map_matching]
-# Path to the output file where the processed map matching results are stored
-# (possible extensions: parquet).
-output_filename = "./output/calibration/match_results.parquet"
+# Maximum relative length difference allowed between TomTom routes and road-network routes.
+# A value of 0.01 means that routes for which the length of the matched path on the road-network
+# differs by more than 1% compared to the length of the TomTom path will be excluded.
+rel_length_threshold = 0.005
 
 [calibration.variables]
 # Variables that can be used in the regression of calibration together with their type.
