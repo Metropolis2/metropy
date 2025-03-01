@@ -329,6 +329,7 @@ identify_tours = true
 
 [synthetic_population.french_vehicle_fleet]
 # Path to the CSV file with the French vehicle fleet data at the INSEE commune level.
+# https://www.statistiques.developpement-durable.gouv.fr/catalogue?page=dataset&datasetId=64511438f3196b5b550dd093
 fleet_filename = "./data/parc/Donnees-sur-le-parc-de-vehicule-au-niveau-communal.2023-05.csv"
 # Year of the vehicle fleet to be used.
 fleet_year = 2022
@@ -527,17 +528,17 @@ multiplicative_interaction_variables = [
 ]
 # List of alpha penalties to try in the LASSO regression.
 alphas = [1, 5, 10]
+
+[calibration.edge_penalties]
+# Path to the output file where the edge penalties are stored
+# (possible extensions: Parquet, CSV).
+output_filename = "./output/road_network/edges_penalties.parquet"
 # Lower bound for the additive penalty.
 additive_penalty_lower_bound = 0
 # Lower bound for the road speed on an edge (in km/h).
 road_speed_lower_bound = 10
 # Upper bound for the global speed on an edge (in km/h).
 global_speed_upper_bound = 140
-
-[calibration.edge_penalties]
-# Path to the output file where the edge penalties are stored
-# (possible extensions: Parquet, CSV).
-output_filename = "./output/road_network/edges_penalties.parquet"
 # If `true`, create graphs comparing the free-flow travel time in TomTom and in the simulation.
 plot_graphs = true
 

@@ -262,7 +262,7 @@ if __name__ == "__main__":
     )
 
     penalties = apply_penalty_bounds(
-        penalties, edges_charac, config["calibration"]["free_flow_calibration"]
+        penalties, edges_charac, config["calibration"]["edge_penalties"]
     )
 
     save_penalties(penalties, config["calibration"]["edge_penalties"]["output_filename"])
