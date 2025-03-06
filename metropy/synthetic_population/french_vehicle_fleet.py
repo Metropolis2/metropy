@@ -62,19 +62,39 @@ def match_home_to_municipalities(
 
 def read_vehicle_fleet(filename: str, households: pl.DataFrame, year: int):
     print("Reading vehicle fleet...")
-    vehicles = pl.scan_csv(
-        filename,
-        separator=";",
-        skip_rows=1,
-        schema_overrides={"COMMUNE_CODE": pl.String, f"PARC_{year}": pl.UInt64},
-    )
-    vehicles = vehicles.rename({"COMMUNE_CODE": "insee", f"PARC_{year}": "nb_vehicles"})
+    if filename.endswith(".csv"):
+        vehicles = pl.scan_csv(
+            filename,
+            separator=";",
+            skip_rows=1,
+            schema_overrides={"COMMUNE_CODE": pl.String, f"PARC_{year}": pl.UInt64},
+        )
+        vehicles = vehicles.rename({"COMMUNE_CODE": "insee", f"PARC_{year}": "nb_vehicles"})
+        # Consider only cars.
+        vehicles = vehicles.filter(pl.col("CLASSE_VEHICULE") == "vp")
+    elif filename.endswith(".xlsx"):
+        vehicles = pl.read_excel(
+            filename,
+            read_options={"header_row": 3},
+            schema_overrides={"Code commune de résidence": pl.String, f"{year}": pl.UInt64},
+        ).lazy()
+        vehicles = vehicles.rename(
+            {
+                "Code commune de résidence": "insee",
+                "Carburant": "CARBURANT",
+                "Crit'Air": "CRITAIR",
+                f"{year}": "nb_vehicles",
+            }
+        )
+        # Consider only household cars (i.e., exclude professional cars).
+        vehicles = vehicles.filter(pl.col("statut") == "PAR")
+        vehicles = vehicles.filter(pl.col("CARBURANT") != "Non déterminé")
+    else:
+        raise Exception(f"Invalid fleet filename: `{filename}`")
     # Select the communes of interest.
     vehicles = vehicles.filter(pl.col("insee").is_in(households["insee"]))
     # Drop "Inconnu".
     vehicles = vehicles.filter(pl.col("CRITAIR") != "Inconnu")
-    # Consider only cars.
-    vehicles = vehicles.filter(pl.col("CLASSE_VEHICULE") == "vp")
     # Normalize names.
     vehicles = vehicles.with_columns(
         pl.col("CARBURANT")
@@ -182,6 +202,13 @@ def draw_vehicles(households: pl.DataFrame, vehicles: pl.DataFrame, random_seed=
     rng = np.random.default_rng(random_seed)
     households = households.sort("household_id")
     vehicles = vehicles.sort("insee", "CARBURANT", "CRITAIR")
+    unknown_insee = set(households["insee"]).difference(set(vehicles["insee"]))
+    if unknown_insee:
+        print(f"Warning. Unknown fleet for {len(unknown_insee)} municipalities: {unknown_insee}")
+        n0 = households["number_of_vehicles"].sum()
+        households = households.filter(pl.col("insee").is_in(unknown_insee).not_())
+        n = households["number_of_vehicles"].sum()
+        print(f"representing {n0-n:,} vehicles ({(n0-n)/n0:.2%} of total)")
     print("Drawing vehicles for each household...")
     vehicles_by_insee = vehicles.partition_by(["insee"], as_dict=True)
     n = int(households["number_of_vehicles"].sum())
@@ -288,7 +315,6 @@ if __name__ == "__main__":
         "france.insee_filename",
         "synthetic_population.french_vehicle_fleet.fleet_filename",
         "synthetic_population.french_vehicle_fleet.fleet_year",
-        "synthetic_population.french_vehicle_fleet.output_filename",
         "synthetic_population.french_vehicle_fleet.car_types",
     ]
     check_keys(config, mandatory_keys)
@@ -298,8 +324,12 @@ if __name__ == "__main__":
 
     households = read_households(config["population_directory"])
 
+    if config["synthetic_population"]["french_vehicle_fleet"].get("use_arrondissement", False):
+        arrondissement_filename = config["france"]["arrondissement_filename"]
+    else:
+        arrondissement_filename = None
     municipalities = read_municipalities(
-        config["france"]["insee_filename"], config["france"].get("arrondissement_filename")
+        config["france"]["insee_filename"], arrondissement_filename
     )
 
     households = match_home_to_municipalities(households, municipalities, config["crs"])
@@ -317,10 +347,7 @@ if __name__ == "__main__":
 
     df = add_european_standard(df, this_config["car_types"])
 
-    metro_io.save_dataframe(
-        df,
-        this_config["output_filename"],
-    )
+    metro_io.save_dataframe(df, os.path.join(config["population_directory"], "vehicles.parquet"))
 
     save_critairs_by_insee(
         df, households, os.path.join(config["population_directory"], "vehicles_by_insee.parquet")
