@@ -6,7 +6,7 @@ import polars as pl
 import geopandas as gpd
 
 
-def save_households(directory: str, name: str, crs: str, output_dir: str):
+def save_households(directory: str, name: str, crs: str, output_dir: str, fraction=1.0, seed=None):
     households = pl.scan_csv(
         os.path.join(directory, f"{name}_households.csv"),
         separator=";",
@@ -16,6 +16,8 @@ def save_households(directory: str, name: str, crs: str, output_dir: str):
             "number_of_bikes": pl.UInt8,
         },
     )
+    if fraction < 1.0:
+        households = households.sample(fraction=fraction, seed=seed)
     # Add number of persons in the household.
     persons = pl.scan_csv(
         os.path.join(directory, f"{name}_persons.csv"),
@@ -46,6 +48,7 @@ def save_households(directory: str, name: str, crs: str, output_dir: str):
     n = len(gdf)
     print(f"{n:,} households collected")
     gdf.to_parquet(os.path.join(output_dir, "households.parquet"))
+    return households
 
 
 def get_home_coordinates(directory: str, name: str):
@@ -63,7 +66,7 @@ def get_home_coordinates(directory: str, name: str):
     return home_coords_df
 
 
-def save_persons(directory: str, name: str, output_dir: str):
+def save_persons(directory: str, name: str, output_dir: str, households: pl.DataFrame):
     persons = pl.scan_csv(
         os.path.join(directory, f"{name}_persons.csv"),
         separator=";",
@@ -78,6 +81,8 @@ def save_persons(directory: str, name: str, output_dir: str):
             "has_pt_subscription": pl.Boolean,
         },
     )
+    # Filter the persons with a valid household.
+    persons = persons.join(households, on="household_id", how="semi")
     # Set `sex` column as a boolean.
     persons = persons.with_columns((pl.col("sex") == "female").alias("woman"))
     # Collect and return the DataFrame.
@@ -95,9 +100,10 @@ def save_persons(directory: str, name: str, output_dir: str):
     n = len(persons)
     print(f"{n:,} persons collected")
     persons.write_parquet(os.path.join(output_dir, "persons.parquet"))
+    return persons
 
 
-def save_trips(directory: str, name: str, identify_tours: bool, crs: str, output_dir: str):
+def save_trips(directory: str, name: str, identify_tours: bool, crs: str, output_dir: str, persons: pl.DataFrame):
     print("Reading trips")
     trips = pl.scan_csv(
         os.path.join(directory, f"{name}_trips.csv"),
@@ -111,6 +117,8 @@ def save_trips(directory: str, name: str, identify_tours: bool, crs: str, output
             "following_purpose": pl.String,
         },
     )
+    # Filter trips of valid persons.
+    trips = trips.filter(persons, on="person_id", how="semi")
     trips = trips.sort(["person_id", "trip_index"])
     # Collect and return the DataFrame.
     print("Collecting trip data...")
@@ -179,6 +187,7 @@ def save_trips(directory: str, name: str, identify_tours: bool, crs: str, output
     trips.write_parquet(os.path.join(output_dir, "trips.parquet"))
     orig_df.to_parquet(os.path.join(output_dir, "trip_origins.parquet"))
     dest_df.to_parquet(os.path.join(output_dir, "trip_destinations.parquet"))
+    return trips
 
 
 def get_trip_coordinates(directory: str, name: str, crs: str, trips: pl.DataFrame):
@@ -190,7 +199,10 @@ def get_trip_coordinates(directory: str, name: str, crs: str, trips: pl.DataFram
     origin_ys = list()
     destination_xs = list()
     destination_ys = list()
+    idx = {(p, t) for p, t in zip(trips["person_id"], trips["trip_index"])}
     for feature in layer:
+        if not (feature["person_id"], feature["trip_index"]) in idx:
+            continue
         ((x0, y0), (x1, y1)) = feature.geometry().GetPoints()
         trip_indices.append((feature["person_id"], feature["trip_index"]))
         origin_xs.append(x0)
@@ -204,7 +216,7 @@ def get_trip_coordinates(directory: str, name: str, crs: str, trips: pl.DataFram
     trip_ids = trip_indices_df.join(
         trips.select("person_id", "trip_index", "trip_id"),
         on=["person_id", "trip_index"],
-        how="left",
+        how="inner",
     ).select("trip_id")
     origin_coords_df = gpd.GeoDataFrame(
         data=trip_ids.to_pandas(),
@@ -238,8 +250,10 @@ if __name__ == "__main__":
         os.makedirs(output_dir)
 
     t0 = time.time()
-    save_households(directory, name, config["crs"], output_dir)
-    save_persons(directory, name, output_dir)
-    save_trips(directory, name, identify_tours, config["crs"], output_dir)
+    households = save_households(directory, name, config["crs"], output_dir,
+                                 config["synthetic_population"].get("fraction", 1.0),
+                                 config.get("random_seed"))
+    persons = save_persons(directory, name, output_dir, households)
+    save_trips(directory, name, identify_tours, config["crs"], output_dir, persons)
     t = time.time() - t0
     print("Total running time: {:.2f} seconds".format(t))
