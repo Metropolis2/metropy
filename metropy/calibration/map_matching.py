@@ -21,7 +21,8 @@ def load_data(edges_filename: str, trajectories_filename: str, crs: str):
     trajectories = metro_io.read_geodataframe(
         trajectories_filename, columns=["id", "source", "target", "length", "geometry"]
     )
-    trajectories.sort_values("id", inplace=True)
+    trajectories.set_index("id", inplace=True)
+    trajectories.sort_index(inplace=True)
     trajectories.to_crs(crs, inplace=True)
     return edges, trajectories
 
@@ -62,7 +63,7 @@ def map_matching(
     node_matches = node_matches.group_by("id").agg("node_id")
     # Add trajectories data (source, target and length).
     node_matches = node_matches.join(
-        pl.from_pandas(trajectories.drop(columns=["geometry"])), on="id"
+        pl.from_pandas(trajectories.drop(columns=["geometry"]), include_index=True), on="id"
     )
     # Filter out routes for which either the origin or destination node is not in the matched nodes.
     node_matches = node_matches.filter(
